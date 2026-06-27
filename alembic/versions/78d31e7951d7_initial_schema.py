@@ -5,12 +5,15 @@ Revises:
 Create Date: 2026-06-27 23:41:25.883201
 
 Создаёт 5 таблиц: master_cv, cv_variant, short_link, link_hit, project.
-На PostgreSQL sa.JSON → jsonb, sa.Uuid → uuid (нативно).
+JSON-колонки — нативный PostgreSQL JSONB (по спеке §6).
+UUID PK — нативный PostgreSQL UUID.
+Миграция выполняется на PostgreSQL (через Alembic); тесты моделей идут на SQLite через кросс-БД TypeDecorator в ORM (app.db.JSONB).
 """
 from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects.postgresql import JSONB
 
 # revision identifiers, used by Alembic.
 revision: str = "78d31e7951d7"
@@ -25,11 +28,11 @@ def upgrade() -> None:
         "master_cv",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("summary", sa.Text, nullable=False),
-        sa.Column("contacts", sa.JSON, nullable=False),
-        sa.Column("skills_core", sa.JSON, nullable=False, server_default="{}"),
-        sa.Column("skills_familiar", sa.JSON, nullable=False, server_default="{}"),
-        sa.Column("languages", sa.JSON, nullable=False, server_default="{}"),
-        sa.Column("format", sa.JSON, nullable=False, server_default="{}"),
+        sa.Column("contacts", JSONB, nullable=False),
+        sa.Column("skills_core", JSONB, nullable=False, server_default="{}"),
+        sa.Column("skills_familiar", JSONB, nullable=False, server_default="{}"),
+        sa.Column("languages", JSONB, nullable=False, server_default="{}"),
+        sa.Column("format", JSONB, nullable=False, server_default="{}"),
         sa.Column("full_markdown", sa.Text, nullable=False),
         sa.Column("version", sa.Integer, nullable=False, server_default="1"),
         sa.Column(
@@ -90,11 +93,11 @@ def upgrade() -> None:
         sa.Column("title", sa.Text, nullable=False),
         sa.Column("period", sa.Text, nullable=False),
         sa.Column("role", sa.Text, nullable=False),
-        sa.Column("tags", sa.JSON, nullable=False, server_default="[]"),
+        sa.Column("tags", JSONB, nullable=False, server_default="[]"),
         sa.Column("short_desc", sa.Text, nullable=False),
         sa.Column("long_desc", sa.Text, nullable=True),
-        sa.Column("stack", sa.JSON, nullable=False, server_default="[]"),
-        sa.Column("metrics", sa.JSON, nullable=False, server_default="{}"),
+        sa.Column("stack", JSONB, nullable=False, server_default="[]"),
+        sa.Column("metrics", JSONB, nullable=False, server_default="{}"),
         sa.Column("order_idx", sa.Integer, nullable=False, server_default="0"),
     )
 

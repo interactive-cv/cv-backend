@@ -16,7 +16,7 @@
     "title": "Студенческая социальная сеть",
     "period": "Сен 2025 – Дек 2025",
     "role": "Flutter-разработчик",
-    "tags": ["flutter", "social", "mobx", "autroute"],
+    "tags": ["flutter", "social", "mobx", "autoroute"],
     "short_desc": "Разработчик приложения на Flutter.",
     "stack": ["Flutter", "Dart", "REST API", "WebSocket", "WebView", "Deeplink", "MobX", "AutoRoute", "Dio", "Firebase Messaging"],
     "metrics": {}

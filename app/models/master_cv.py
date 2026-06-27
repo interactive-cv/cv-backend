@@ -3,9 +3,8 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.types import JSON
 
-from app.db import Base
+from app.db import Base, JSONB
 
 if TYPE_CHECKING:
     from app.models.cv_variant import CVVariant
@@ -20,11 +19,11 @@ class MasterCV(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     summary: Mapped[str] = mapped_column(Text)
-    contacts: Mapped[dict] = mapped_column(JSON)
-    skills_core: Mapped[dict] = mapped_column(JSON, default=dict)
-    skills_familiar: Mapped[dict] = mapped_column(JSON, default=dict)
-    languages: Mapped[dict] = mapped_column(JSON, default=dict)
-    format: Mapped[dict] = mapped_column(JSON, default=dict)
+    contacts: Mapped[dict] = mapped_column(JSONB)
+    skills_core: Mapped[dict] = mapped_column(JSONB, default=dict)
+    skills_familiar: Mapped[dict] = mapped_column(JSONB, default=dict)
+    languages: Mapped[dict] = mapped_column(JSONB, default=dict)
+    format: Mapped[dict] = mapped_column(JSONB, default=dict)
     full_markdown: Mapped[str] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer, default=1)
     updated_at: Mapped[datetime] = mapped_column(

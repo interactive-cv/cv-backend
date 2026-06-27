@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
+import uuid
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -20,7 +21,7 @@ class ShortLink(Base):
     __tablename__ = "short_link"
 
     code: Mapped[str] = mapped_column(Text, primary_key=True)  # "R8H", uppercase 4-6
-    cv_variant_id: Mapped[str] = mapped_column(Uuid, ForeignKey("cv_variant.id"))
+    cv_variant_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("cv_variant.id"))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     max_hits: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     hit_count: Mapped[int] = mapped_column(Integer, default=0)
