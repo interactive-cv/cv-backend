@@ -1,0 +1,157 @@
+[
+  {
+    "title": "Магазин товаров для похудения (рынок ЕС)",
+    "period": "Дек 2025 – наст. время",
+    "role": "Fullstack-разработчик всей ИС",
+    "tags": ["flutter", "fullstack", "ecommerce", "nextjs", "serverpod", "i18n"],
+    "short_desc": "Разработчик всей ИС: mobile (Flutter), Web (Next.js), Web-админка (Flutter), Backend (Dart+Serverpod), CI/CD (GitLab CI), публикация mobile в Google Play и App Store, публикация Web и Backend на VPS.",
+    "stack": ["Dart", "Flutter", "Serverpod", "PostgreSQL", "REST API", "WebSocket", "Provider", "Riverpod", "GoRouter", "TypeScript", "Next.js", "GitLab CI", "Docker", "VPS", "S3 Storage"],
+    "metrics": {
+      "Команда": "1 человек (полностью самостоятельно, начиная от ТЗ)",
+      "Пользователей": "~5000",
+      "Срок до публикации": "3 месяца"
+    }
+  },
+  {
+    "title": "Студенческая социальная сеть",
+    "period": "Сен 2025 – Дек 2025",
+    "role": "Flutter-разработчик",
+    "tags": ["flutter", "social", "mobx", "autroute"],
+    "short_desc": "Разработчик приложения на Flutter.",
+    "stack": ["Flutter", "Dart", "REST API", "WebSocket", "WebView", "Deeplink", "MobX", "AutoRoute", "Dio", "Firebase Messaging"],
+    "metrics": {}
+  },
+  {
+    "title": "Сервис продвижения товаров на маркетплейсах",
+    "period": "Фев 2025 – Сен 2025",
+    "role": "Backend-разработчик, DevOps, администратор БД",
+    "tags": ["java", "spring", "highload", "k8s", "devops"],
+    "short_desc": "Backend, DevOps, администрирование БД.",
+    "stack": ["Java 17", "Spring Boot/Data/Security/JDBC", "Maven", "PostgreSQL", "Hibernate", "REST API", "GitLab CI/CD", "Docker", "Kubernetes", "Prometheus", "Grafana", "VPS", "Yandex Object Storage"],
+    "metrics": {
+      "Пользователей": "~10 000",
+      "Команда": "4 человека (1 backend, 1 frontend, 1 DevOps, 1 руководитель команды)"
+    }
+  },
+  {
+    "title": "Реферальная программа найма персонала",
+    "period": "Фев 2025 – Июл 2025",
+    "role": "Flutter-разработчик",
+    "tags": ["flutter", "multi-brand"],
+    "short_desc": "Разработчик приложения на Flutter.",
+    "stack": ["Flutter", "Dart", "REST API", "WebView", "Provider", "Riverpod", "GoRouter", "Dio", "GitLab"],
+    "metrics": {}
+  },
+  {
+    "title": "Real-time видео с FVP дрона",
+    "period": "Дек 2024 – Мар 2025",
+    "role": "Flutter-разработчик",
+    "tags": ["flutter", "rtsp", "realtime", "video"],
+    "short_desc": "Разработчик приложения на Flutter.",
+    "stack": ["Flutter", "Dart", "RTSP", "UDP", "MavLink", "WebSocket", "CustomPainter"],
+    "metrics": {}
+  },
+  {
+    "title": "Финансовые ресурсы НКО (паевой кооператив)",
+    "period": "Дек 2023 – Фев 2025",
+    "role": "Fullstack-разработчик всей ИС",
+    "tags": ["flutter", "fullstack", "serverpod", "fintech", "ecp", "docs"],
+    "short_desc": "Разработчик всей ИС: Mobile, Web-админка, Backend, CI/CD, публикация mobile в Google Play/App Store, публикация Web и Backend на VPS.",
+    "stack": ["Dart", "Flutter", "Serverpod", "PostgreSQL", "REST API", "Provider", "Riverpod", "GoRouter", "Push", "GitLab CI/CD", "Docker", "VPS", "Yandex Object Storage"],
+    "metrics": {
+      "Пайщиков": "~3000",
+      "Внешних интеграций": "8–9",
+      "Команда": "самостоятельно + тесная работа с представителями заказчика"
+    }
+  },
+  {
+    "title": "Агрегатор топливных карт",
+    "period": "Май 2024 – Июн 2024",
+    "role": "Fullstack-разработчик всей ИС",
+    "tags": ["flutter", "pwa", "tma", "fullstack"],
+    "short_desc": "Разработчик всей ИС: адаптивное клиентское PWA-приложение и Telegram Mini Apps, Web-админка, Backend, CI/CD, публикация Web и Backend на VPS, публикация Telegram Mini Apps.",
+    "stack": ["Dart", "Flutter", "Serverpod", "PostgreSQL", "REST API", "Provider", "Riverpod", "GoRouter", "GitLab CI/CD", "Docker", "VPS"],
+    "metrics": {}
+  },
+  {
+    "title": "Туристическое приложение",
+    "period": "Июн 2023 – Дек 2023",
+    "role": "Flutter-разработчик",
+    "tags": ["flutter", "maps", "firebase"],
+    "short_desc": "Разработчик mobile-приложения на Flutter.",
+    "stack": ["Flutter", "Dart", "Yandex MapKit SDK", "REST API", "Provider", "Riverpod", "GoRouter", "Firebase", "Push", "Dio", "GitLab"],
+    "metrics": {}
+  },
+  {
+    "title": "Платформа инвестиций в криптовалюту",
+    "period": "Окт 2022 – Май 2023",
+    "role": "Flutter-разработчик",
+    "tags": ["flutter", "fintech", "crypto"],
+    "short_desc": "Разработчик mobile-приложения на Flutter.",
+    "stack": ["Flutter", "Dart", "REST API", "GetX", "BLoC", "GetIt", "Firebase", "Push", "Dio", "GitLab"],
+    "metrics": {}
+  },
+  {
+    "title": "Газоперерабатывающий холдинг (газ/ГБО)",
+    "period": "Мар 2022 – Сен 2022",
+    "role": "Разработчик Web-приложения на Flutter",
+    "tags": ["flutter", "web", "b2b", "ecp"],
+    "short_desc": "Разработчик Web-приложения на Flutter.",
+    "stack": ["Flutter", "Dart", "REST API", "Dio", "Provider", "BLoC (Cubit)", "Router", "КриптоПро ЭЦП", "GitLab CI/CD", "Docker", "Yandex Cloud"],
+    "metrics": {}
+  },
+  {
+    "title": "Маркетплейс частных авиаперевозок",
+    "period": "Ноя 2021 – Фев 2022",
+    "role": "Разработчик mobile и Web приложения на Flutter",
+    "tags": ["flutter", "marketplace", "firebase"],
+    "short_desc": "Разработчик mobile и Web приложения на Flutter.",
+    "stack": ["Flutter", "Dart", "Firebase", "Cloud Firestore", "Firebase Auth", "Dio", "Provider", "BLoC (Cubit)", "DigitalOcean Cloud"],
+    "metrics": {}
+  },
+  {
+    "title": "Личный кабинет пациента поликлиники",
+    "period": "Июн 2021 – Ноя 2021",
+    "role": "Разработчик (mobile, Web, Backend, CI/CD), DevOps",
+    "tags": ["flutter", "medtech", "1c", "fullstack"],
+    "short_desc": "Разработчик (mobile, Web, Backend, CI/CD), DevOps.",
+    "stack": ["Flutter", "Dart", "Dio", "Provider", "BLoC (Cubit)", "1С", "REST API", "VPS Server", "Docker", "Docker Compose", "Apache HTTP", "Nginx"],
+    "metrics": {}
+  },
+  {
+    "title": "Бухгалтерский сервис для ИП",
+    "period": "Июн 2021 – Июл 2021",
+    "role": "Разработчик, DevOps",
+    "tags": ["1c", "devops"],
+    "short_desc": "Разработчик, DevOps.",
+    "stack": ["REST API на базе 1С", "Docker", "Docker Compose", "Apache HTTP", "Yandex Cloud"],
+    "metrics": {}
+  },
+  {
+    "title": "Электронный документооборот (РОСЭУ)",
+    "period": "Фев 2020 – Мар 2022",
+    "role": "Backend-разработчик",
+    "tags": ["java", "spring", "kafka", "backend", "edo"],
+    "short_desc": "Backend-разработчик.",
+    "stack": ["Java 11", "Spring Boot/Data/Security/JPA/JDBC", "Gradle", "PostgreSQL", "HBase/Phoenix", "Kafka", "REST API", "Hibernate", "Liquibase"],
+    "metrics": {}
+  },
+  {
+    "title": "Корпоративная система учёта компетенций IT-сотрудников",
+    "period": "Дек 2019 – Фев 2020",
+    "role": "Backend-разработчик",
+    "tags": ["java", "spring", "backend"],
+    "short_desc": "Backend-разработчик.",
+    "stack": ["Java 8", "Spring Boot/Data/Security/JPA", "Maven", "PostgreSQL", "Hibernate", "Liquibase"],
+    "metrics": {}
+  },
+  {
+    "title": "ИС медицинской организации (крупная частная поликлиника)",
+    "period": "Фев 2015 – Дек 2019",
+    "role": "Ведущий разработчик, тимлид, DevOps",
+    "tags": ["lead", "1c", "csharp", "devops", "medtech", "integrations"],
+    "short_desc": "Ведущий разработчик, тимлид, DevOps.",
+    "stack": ["1С (управляемые формы)", "С#", "HiASM", "REST", "HTTP", "FTP", "CentOS Server", "Docker", "Docker Compose", "Apache HTTP", "Nginx"],
+    "metrics": {}
+  }
+]
