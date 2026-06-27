@@ -20,5 +20,17 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
 
+    @property
+    def async_database_url(self) -> str:
+        """URL для async-движка: psycopg → psycopg_async (psycopg3 async-mode).
+
+        Sync `database_url` (psycopg) используется для Alembic/seed;
+        async — для FastAPI-эндпоинтов.
+        """
+        url = self.database_url
+        if url.startswith("postgresql+psycopg://"):
+            return url.replace("postgresql+psycopg://", "postgresql+psycopg_async://", 1)
+        return url
+
 
 settings = Settings()

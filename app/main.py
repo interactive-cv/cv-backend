@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.errors import AppError, app_error_handler
+from app.routers import cv, health, projects
 
 
 def create_app() -> FastAPI:
@@ -12,11 +14,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    @app.get("/api/health")
-    async def health() -> dict:
-        return {"status": "ok"}
-
+    app.add_exception_handler(AppError, app_error_handler)
+    app.include_router(health.router)
+    app.include_router(cv.router)
+    app.include_router(projects.router)
     return app
 
 
