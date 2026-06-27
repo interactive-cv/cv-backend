@@ -93,3 +93,39 @@ async def test_admin_create_link_unknown_variant_404(client, session):
         "/admin/links", headers=VALID, json={"cv_variant_slug": "no-such-variant"}
     )
     assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_admin_create_variant_persists_and_visible_publicly(client, session):
+    """Созданный через admin вариант виден через публичный GET /api/variants/{slug}."""
+    session.add(MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV", version=1))
+    await session.commit()
+    res = await client.post(
+        "/admin/variants",
+        headers=VALID,
+        json={
+            "slug": "tinkoff",
+            "title": "Tinkoff Flutter",
+            "content_markdown": "# T CS",
+            "status": "active",
+        },
+    )
+    assert res.status_code == 201
+    # публичный эндпоинт находит созданный вариант
+    pub = await client.get("/api/variants/tinkoff")
+    assert pub.status_code == 200
+    assert pub.json()["title"] == "Tinkoff Flutter"
+
+
+@pytest.mark.asyncio
+async def test_admin_create_variant_normalizes_slug_to_lowercase(client, session):
+    """§4: slug приводится к нижнему регистру."""
+    session.add(MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV", version=1))
+    await session.commit()
+    res = await client.post(
+        "/admin/variants",
+        headers=VALID,
+        json={"slug": "YANDEX", "title": "t", "content_markdown": "# m"},
+    )
+    assert res.status_code == 201
+    assert res.json()["slug"] == "yandex"

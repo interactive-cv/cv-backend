@@ -1,4 +1,5 @@
 import secrets
+import string
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
@@ -13,19 +14,32 @@ from app.schemas.link import LinkCreateIn
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 
+# Алфавит коротких кодов: ТОЛЬКО буквы (без цифр) → гарантия isupper()=True (§4 верхний регистр).
+# 26^5 ≈ 11.9M вариантов — достаточно для коротких ссылок и устойчивее к digits-only edge case.
+_CODE_ALPHABET = string.ascii_uppercase  # ABCDEFGHIJKLMNOPQRSTUVWXYZ
+_CODE_LENGTH = 5
+_MAX_CODE_RETRIES = 5
+
+
+def _generate_code() -> str:
+    """Случайный код из 5 заглавных букв (без цифр)."""
+    return "".join(secrets.choice(_CODE_ALPHABET) for _ in range(_CODE_LENGTH))
+
 
 @router.post("/variants", status_code=201)
 async def create_variant(
     body: CVVariantCreateIn, session: AsyncSession = Depends(get_session)
 ) -> dict:
+    # §4: slug — нижний регистр, человекочитаемый. Нормализуем.
+    slug = body.slug.lower()
     existing = (
-        await session.execute(select(CVVariant).where(CVVariant.slug == body.slug))
+        await session.execute(select(CVVariant).where(CVVariant.slug == slug))
     ).scalar_one_or_none()
     if existing:
         raise AppError("conflict", "Slug уже занят", 409)
     v = CVVariant(
         master_cv_id=1,
-        slug=body.slug,
+        slug=slug,
         title=body.title,
         company=body.company,
         content_markdown=body.content_markdown,
@@ -46,7 +60,16 @@ async def create_link(
     ).scalar_one_or_none()
     if not v:
         raise AppError("not_found", "Вариант CV не найден", 404)
-    code = secrets.token_hex(3).upper()[:5]  # 5 символов, верхний регистр
+    # Генерация с retry на случай редкой коллизии (code — PK).
+    for _ in range(_MAX_CODE_RETRIES):
+        code = _generate_code()
+        exists = (
+            await session.execute(select(ShortLink).where(ShortLink.code == code))
+        ).scalar_one_or_none()
+        if not exists:
+            break
+    else:
+        raise AppError("conflict", "Не удалось сгенерировать уникальный код ссылки", 409)
     link = ShortLink(
         code=code,
         cv_variant_id=v.id,
