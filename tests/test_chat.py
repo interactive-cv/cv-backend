@@ -75,6 +75,16 @@ async def test_chat_rate_limited_returns_429(client, master_in_db):
 
 
 @pytest.mark.asyncio
+async def test_chat_no_master_cv_returns_404(client):
+    # мастер-CV не создан → 404 в едином формате (rate-limit проходит на свежем IP)
+    resp = await client.post(
+        "/api/chat", json={"message": "test"}, headers={"x-forwarded-for": "10.99.0.4"}
+    )
+    assert resp.status_code == 404
+    assert resp.json()["error"] == "not_found"
+
+
+@pytest.mark.asyncio
 @respx.mock
 async def test_chat_zai_failure_fallback(client, master_in_db):
     # z.ai вернул 500 → graceful degradation, fallback-сообщение, НЕ 500
