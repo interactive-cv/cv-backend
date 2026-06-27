@@ -4,7 +4,20 @@ from app.models import Project
 
 
 @pytest.mark.asyncio
-async def test_list_projects_empty(client):
+async def test_health(client):
+    res = await client.get("/api/health")
+    assert res.status_code == 200
+    assert res.json() == {"status": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_get_master_cv_not_found(client):
+    # мастер-CV не создан → 404 в едином формате ошибок
+    res = await client.get("/api/cv/master")
+    assert res.status_code == 404
+    body = res.json()
+    assert body["error"] == "not_found"
+    assert "request_id" in body
     res = await client.get("/api/projects")
     assert res.status_code == 200
     assert res.json() == []
