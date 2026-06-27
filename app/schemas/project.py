@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -8,5 +10,5 @@ class ProjectOut(BaseModel):
     tags: list[str] = []
     short_desc: str
     stack: list[str] = []
-    metrics: dict = {}
+    metrics: dict[str, Any] = {}
     order_idx: int = 0

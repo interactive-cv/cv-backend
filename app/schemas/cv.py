@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -31,4 +31,4 @@ class CVVariantCreateIn(BaseModel):
     company: str | None = None
     content_markdown: str
     vacancy_text: str | None = None
-    status: str = "draft"
+    status: Literal["draft", "active", "archived"] = "draft"
