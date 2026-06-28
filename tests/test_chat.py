@@ -2,6 +2,7 @@ import httpx
 import pytest
 import respx
 
+from app.config import settings
 from app.llm.prompts import build_system_prompt
 from app.main import create_app  # noqa: F401 — гарантирует, что приложение импортируемо
 from app.models import MasterCV
@@ -52,7 +53,7 @@ async def test_chat_streams_tokens(client, master_in_db):
         'data: {"choices":[{"delta":{"content":"Flutter."}}]}\n\n'
         'data: [DONE]\n\n'
     )
-    respx.post("https://api.z.ai/api/paas/v4/chat/completions").mock(
+    respx.post(f"{settings.zai_api_base}/chat/completions").mock(
         return_value=httpx.Response(200, text=sse_body)
     )
     resp = await client.post("/api/chat", json={"message": "Чем занимаешься?"})
@@ -88,7 +89,7 @@ async def test_chat_no_master_cv_returns_404(client):
 @respx.mock
 async def test_chat_zai_failure_fallback(client, master_in_db):
     # z.ai вернул 500 → graceful degradation, fallback-сообщение, НЕ 500
-    respx.post("https://api.z.ai/api/paas/v4/chat/completions").mock(
+    respx.post(f"{settings.zai_api_base}/chat/completions").mock(
         return_value=httpx.Response(500, text="upstream error")
     )
     resp = await client.post(
