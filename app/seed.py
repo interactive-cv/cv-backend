@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import MasterCV, Project
+from app.services.cv_parser import parse_master_cv
 
 SEED_DIR = Path(__file__).resolve().parent.parent / "seed_data"
 
@@ -23,12 +24,31 @@ def main() -> None:
     with Session(engine) as session:
         # --- master_cv (одна строка, id=1) ---
         md = (SEED_DIR / "master_cv.md").read_text(encoding="utf-8")
+        parsed = parse_master_cv(md)
         existing = session.get(MasterCV, 1)
         if existing:
             existing.full_markdown = md
+            existing.summary = parsed["summary"]
+            existing.contacts = parsed["contacts"]
+            existing.skills_core = parsed["skills_core"]
+            existing.skills_familiar = parsed["skills_familiar"]
+            existing.languages = parsed["languages"]
+            existing.format = parsed["format"]
             existing.version += 1
         else:
-            session.add(MasterCV(id=1, summary="", contacts={}, full_markdown=md, version=1))
+            session.add(
+                MasterCV(
+                    id=1,
+                    summary=parsed["summary"],
+                    contacts=parsed["contacts"],
+                    skills_core=parsed["skills_core"],
+                    skills_familiar=parsed["skills_familiar"],
+                    languages=parsed["languages"],
+                    format=parsed["format"],
+                    full_markdown=md,
+                    version=1,
+                )
+            )
 
         # --- projects (полная перезаливка, порядок по файлу) ---
         for p in session.execute(select(Project)).scalars().all():
