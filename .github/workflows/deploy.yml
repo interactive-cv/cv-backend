@@ -1,0 +1,45 @@
+name: deploy to prod
+
+# Деплой на VPS при merge feature-ветки в master.
+# Требует Secrets: DEPLOY_SSH_KEY (приватный ключ), DEPLOY_HOST, DEPLOY_USER.
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd /home/deploy
+            # Оба репо лежат рядом (compose ссылается на ../cv-frontend).
+            echo "=== pull cv-backend ==="
+            if [ -d cv-backend ]; then
+              cd cv-backend && git pull --ff-only && cd ..
+            else
+              git clone git@github.com:${{ github.repository }}.git cv-backend
+            fi
+
+            echo "=== pull cv-frontend ==="
+            if [ -d cv-frontend ]; then
+              cd cv-frontend && git pull --ff-only && cd ..
+            else
+              git clone git@github.com:ВЫ_ЗАПОЛНИТЕ_ИМЯ/cv-frontend.git cv-frontend
+            fi
+
+            echo "=== rebuild + restart (libera_cv) ==="
+            cd cv-backend
+            docker compose -f docker-compose.prod.yml up -d --build
+
+            echo "=== migrations + seed ==="
+            docker compose -f docker-compose.prod.yml exec -T fastapi alembic upgrade head
+            docker compose -f docker-compose.prod.yml exec -T fastapi python -m app.seed
+
+            echo "=== deployed ==="
