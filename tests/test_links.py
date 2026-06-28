@@ -74,3 +74,23 @@ async def test_resolve_increments_hit_count_and_logs_hit(client, session):
     hits = (await session.execute(select(LinkHit))).scalars().all()
     assert len(hits) == 1
     assert hits[0].ip_hash is not None  # приватность: хэш, не сырой IP
+
+
+@pytest.mark.asyncio
+async def test_resolve_rate_limited_after_threshold(client, session):
+    """Брутфорс коротких кодов защищён rate-limit'ом (§10): после 20/IP/час — 429."""
+    await _make_link(session)
+    # Брутфорс несуществующих кодов с одного IP (X-Forwarded-For).
+    # Лимит RESOLVE_RATE_PER_HOUR = 20 → 21-й запрос должен дать 429.
+    import string
+
+    statuses = []
+    for i in range(21):
+        # Валидный формат: 5 заглавных букв (AAAAA, AAAAB, ...).
+        code = "A" * 4 + string.ascii_uppercase[i]
+        res = await client.get(
+            "/api/links/resolve", params={"code": code}, headers={"x-forwarded-for": "7.7.7.7"}
+        )
+        statuses.append(res.status_code)
+    # После исчерпания лимита (20) должен появиться 429.
+    assert 429 in statuses, f"rate-limit не сработал: {statuses}"

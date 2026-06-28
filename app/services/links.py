@@ -44,10 +44,23 @@ async def resolve_link(
     if link.max_hits is not None and link.hit_count >= link.max_hits:
         raise AppError("gone", "Лимит открытий ссылки исчерпан", 410)
 
+    # Атомарный инкремент с guard'ом: инкрементируем ТОЛЬКО если лимит не исчерпан.
+    # Это устраняет race condition между read-проверкой выше и UPDATE (без блокировок):
+    # параллельный запрос, прошедший проверку, но не успевший за конкурентом, получит rowcount=0.
     session.add(LinkHit(short_link_code=link.code, referrer=referrer, ua=ua, ip_hash=hash_ip(ip)))
-    await session.execute(
-        update(ShortLink).where(ShortLink.code == code).values(hit_count=ShortLink.hit_count + 1)
+    result = await session.execute(
+        update(ShortLink)
+        .where(ShortLink.code == code)
+        .where(
+            (ShortLink.max_hits.is_(None))
+            | (ShortLink.hit_count < ShortLink.max_hits)
+        )
+        .values(hit_count=ShortLink.hit_count + 1)
     )
+    if result.rowcount == 0:
+        # Лимит исчерпан параллельным запросом в окне между read и update.
+        await session.rollback()
+        raise AppError("gone", "Лимит открытий ссылки исчерпан", 410)
     await session.commit()
 
     return link.variant.slug, expires
