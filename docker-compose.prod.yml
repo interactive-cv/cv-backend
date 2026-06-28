@@ -1,0 +1,47 @@
+# Production-конфиг для VPS.
+# Предполагается: на VPS клонированы cv-backend/ и cv-frontend/ рядом (соседние папки).
+# Запуск: см. DEPLOY.md (получение TLS, seed, smoke-проверки).
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    depends_on: [nextjs, fastapi]
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    env_file: .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  fastapi:
+    build: .
+    env_file: .env
+    depends_on: [postgres]
+    restart: unless-stopped
+    # Прод-режим: без --reload. Healthcheck в Dockerfile.
+
+  nextjs:
+    build:
+      context: ../cv-frontend
+      args:
+        # Публичный URL бэкенда (через домен, не localhost).
+        NEXT_PUBLIC_API_URL: https://cv.libera.pro
+    env_file: .env
+    environment:
+      # NEXT_PUBLIC_API_URL инлайнится в КЛИЕНТСКИЙ бандл (виден браузеру) → публичный домен.
+      NEXT_PUBLIC_API_URL: https://cv.libera.pro
+      # API_URL_INTERNAL — для СЕРВЕРНЫХ fetch (SSR): внутренний адрес fastapi в compose-сети.
+      API_URL_INTERNAL: http://fastapi:8000
+    depends_on: [fastapi]
+    restart: unless-stopped
+
+volumes:
+  pgdata:

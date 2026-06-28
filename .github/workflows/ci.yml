@@ -1,0 +1,41 @@
+name: backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: cv
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: cv
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U cv"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+psycopg://cv:test@localhost:5432/cv
+      ADMIN_TOKEN: ci-admin-token
+      SECRET_KEY: ci-secret
+      IP_HASH_SECRET: ci-ip-secret
+      ZAI_API_KEY: ci-zai-key
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check app/ tests/ alembic/
+      - run: pytest -m "not e2e"
+      # Smoke миграций на реальной PG (гарантирует, что схема валидна).
+      - run: alembic upgrade head
