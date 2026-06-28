@@ -71,14 +71,23 @@ curl -sI https://libera.pro                        # → 301 → cv.libera.pro
 curl -s https://cv.libera.pro/ | grep -o "Валерий Григорьев"  # → SSR отрендерил
 ```
 
-## 6. Обновления
+## 6. Обновления (ручной деплой с Mac)
+
+Один скрипт `deploy.sh` (в корне cv-backend) — rsync + rebuild + миграции + seed:
 
 ```bash
-cd /opt/cv-backend && git pull
-cd /opt/cv-frontend && git pull
-cd /opt/cv-backend
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml exec -T fastapi alembic upgrade head   # если были миграции
+cd /Users/valeriy/ZCodeProject/cv-backend
+bash deploy.sh
+```
+
+Можно переопределить ключ/хост: `SSH_KEY=~/.ssh/... HOST=deploy@... bash deploy.sh`
+
+⚠️ **Критично:** `deploy.sh` **НЕ перезаписывает** `.env` на VPS (`--exclude='.env'`).
+Prod-`.env` содержит реальные секреты (ADMIN_TOKEN, POSTGRES_PASSWORD, z.ai-ключ) и
+живёт только на сервере. Меняется вручную на VPS при необходимости:
+```bash
+ssh deploy@91.132.56.149 'nano /home/deploy/libera_cv/cv-backend/.env'
+# после смены секретов — перезапуск: bash deploy.sh или docker compose restart fastapi
 ```
 
 ## 7. Продление сертификатов
