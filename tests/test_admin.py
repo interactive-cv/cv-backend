@@ -80,7 +80,7 @@ async def test_admin_create_link_success(client, session):
     assert res.status_code == 201
     body = res.json()
     assert "code" in body
-    assert body["url"].startswith("https://cv.libera.pro/")
+    assert body["url"].startswith("https://cv.example.com/")
     # код — верхний регистр, 4-6 символов
     assert body["code"].isupper() and 4 <= len(body["code"]) <= 6
 

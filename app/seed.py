@@ -18,12 +18,26 @@ from app.services.cv_parser import parse_master_cv
 SEED_DIR = Path(__file__).resolve().parent.parent / "seed_data"
 
 
+def _read_seed(name: str) -> str:
+    """Читает seed-файл. Если реального нет — подсказывает скопировать из .example."""
+    path = SEED_DIR / name
+    if not path.exists():
+        example = SEED_DIR / f"{name}.example"
+        raise SystemExit(
+            f"❌ Файл seed_data/{name} не найден.\n"
+            f"   Скопируйте пример и отредактируйте под себя:\n"
+            f"     cp {example} {path}\n"
+            f"   Затем повторите seed."
+        )
+    return path.read_text(encoding="utf-8")
+
+
 def main() -> None:
     engine = create_engine(settings.database_url)
 
     with Session(engine) as session:
         # --- master_cv (одна строка, id=1) ---
-        md = (SEED_DIR / "master_cv.md").read_text(encoding="utf-8")
+        md = _read_seed("master_cv.md")
         parsed = parse_master_cv(md)
         existing = session.get(MasterCV, 1)
         if existing:
@@ -53,7 +67,7 @@ def main() -> None:
         # --- projects (полная перезаливка, порядок по файлу) ---
         for p in session.execute(select(Project)).scalars().all():
             session.delete(p)
-        data = json.loads((SEED_DIR / "projects.json").read_text(encoding="utf-8"))
+        data = json.loads(_read_seed("projects.json"))
         for i, p in enumerate(data):
             session.add(Project(**p, order_idx=i))
 

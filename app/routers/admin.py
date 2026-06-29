@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.deps import get_session, require_admin
 from app.errors import AppError
 from app.models import CVVariant, CVVariantStatus, ShortLink
@@ -78,4 +79,4 @@ async def create_link(
     )
     session.add(link)
     await session.commit()
-    return {"code": code, "url": f"https://cv.libera.pro/{code}"}
+    return {"code": code, "url": f"{settings.site_url}/{code}"}

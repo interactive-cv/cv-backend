@@ -1,28 +1,18 @@
 # Дорожная карта / TODO
 
-## Универсализация: сделать шаблон полностью параметрическим
+## Универсализация: сделать шаблон полностью параметрическим ✅
 
-Сейчас часть персональных данных захардкожена в коде. Цель — вынести всё в конфигурацию (`seed_data/` + `.env`), чтобы чужое CV разворачивалось **только** заменой контента, без правки исходников.
+Цель достигнута: чужое CV разворачивается **только** заменой контента (`seed_data/`) и `.env`, без правки исходников.
 
-### Захардкоженные места (вынести в конфиг)
+- [x] `app/routers/admin.py` — URL короткой ссылки через `SITE_URL` из `.env`
+- [x] `app/llm/prompts.py` — имя кандидата парсится из первой строки `master_cv.md` (`# Имя`)
+- [x] `app/config.py` — `SITE_URL` добавлен, `contacts_fallback` без дефолта
+- [x] `docker-compose.prod.yml` — `LE_EMAIL`, `LE_FQDN`, `NEXT_PUBLIC_API_URL` с примерами и комментарием
+- [x] `nginx_ssl/conf/service_cv.conf` — `server_name` с примером + комментарий «замените на свой домен»
+- [x] `app/layout.tsx`, `opengraph-image.tsx`, `robots.ts`, `sitemap.ts`, `Hero.tsx` — через `lib/site.ts` (env: `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_OWNER_NAME`, `NEXT_PUBLIC_OWNER_ROLE`)
+- [x] `seed_data/master_cv.md`, `projects.json` → `.example`, реальный контент каждый создаёт сам; `seed.py` подсказывает скопировать из примера
 
-**Бэкенд:**
-- [ ] `app/routers/admin.py` — URL короткой ссылки (`https://cv.libera.pro/{code}`) → переменная `SITE_URL` из `.env`
-- [ ] `app/llm/prompts.py` — имя в системном промпте («Валерий Григорьев», пример с Google) → брать из `master_cv` / параметризовать
-- [ ] `app/config.py` — `contacts_fallback` (значение по умолчанию с конкретными контактами) → оставить пустым, требовать в `.env`
-- [ ] `docker-compose.prod.yml` — `LE_EMAIL`, `LE_FQDN`, `NEXT_PUBLIC_API_URL` (сейчас пример cv.libera.pro) → документировать как обязательные переменные
-- [ ] `nginx_ssl/conf/service_cv.conf` — `server_name cv.libera.pro libera.pro` → параметризовать через шаблонизацию при сборке образа или переменные окружения
-
-**Фронтенд:**
-- [ ] `app/layout.tsx` — `SITE_URL`, `TITLE`, `DESCRIPTION` (конкретные значения) → переменные окружения с дефолтами
-- [ ] `app/opengraph-image.tsx` — имя «Валерий Григорьев», бейджи навыков → брать из API / env
-- [ ] `app/robots.ts`, `app/sitemap.ts` — домен `cv.libera.pro` → env `NEXT_PUBLIC_SITE_URL`
-- [ ] `components/landing/Hero.tsx` — `FALLBACK` (имя, теги) → из API с env-дефолтами
-
-**Контент:**
-- [ ] `seed_data/master_cv.md`, `seed_data/projects.json` — заменить на пример/шаблон (`master_cv.example.md`), реальные данные через `.env`/seed-параметры
-
-### Прочее по развитию
+## Прочее по развитию
 
 - [ ] Админ-панель (UI) для управления вариантами CV и короткими ссылками из браузера
 - [ ] Расширенная аналитика просмотров и переходов по коротким ссылкам

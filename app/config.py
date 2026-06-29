@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     ip_hash_secret: str
     allowed_origins: str = "http://localhost:3000"
     contacts_fallback: str = ""
+    site_url: str = "https://cv.example.com"
     zai_api_key: str = ""
     zai_api_base: str = "https://api.z.ai/api/coding/paas/v4"
     zai_model: str = "glm-4.7"
