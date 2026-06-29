@@ -24,3 +24,5 @@ CLAUDE.md
 .cursor/
 .aider*
 
+DEPLOY.md
+deploy.sh
