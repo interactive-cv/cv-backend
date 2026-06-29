@@ -60,7 +60,7 @@ services:
     restart: always
     env_file: .env
     environment:
-      NEXT_PUBLIC_API_URL: https://cv.libera.pro
+      NEXT_PUBLIC_API_URL: https://cv.example.com   # ← ваш домен
       API_URL_INTERNAL: http://fastapi:8000
     depends_on: [fastapi]
     networks: [internal]
