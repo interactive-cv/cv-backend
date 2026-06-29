@@ -3,7 +3,7 @@ from collections import defaultdict, deque
 
 from app.config import settings
 
-# in-memory: (scope, ip) -> deque[timestamp]. Для MVP с одним воркером достаточно.
+# Хранилище в памяти: (scope, ip) -> deque[timestamp]. Для MVP с одним воркером достаточно.
 # Прод-вариант при нескольких воркерах — Redis (см. спека §14 открытые вопросы).
 # scope разделяет bucket'ы чата и резолва коротких ссылок.
 _buckets: dict[tuple[str, str], deque] = defaultdict(deque)

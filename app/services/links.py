@@ -13,7 +13,7 @@ from app.models import LinkHit, ShortLink
 
 
 def hash_ip(ip: str) -> str:
-    """HMAC-хэш IP с секретом (приватность: не храним сырые IP, §10)."""
+    """HMAC-хэш IP с секретом (приватность: сырые IP не храним, §10)."""
     return hmac.new(
         settings.ip_hash_secret.encode(), ip.encode(), hashlib.sha256
     ).hexdigest()
