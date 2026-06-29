@@ -40,8 +40,8 @@ async def sample_variant(session: AsyncSession):
         master_cv_id=1,
         slug="staffty",
         title="Flutter Full Stack",
-        company="Staffty",
-        content_markdown="# Staffty CV",
+        company="Acme Corp",
+        content_markdown="# Acme Corp CV",
         status=CVVariantStatus.active,
     )
     session.add(v)

@@ -29,8 +29,8 @@ async def test_create_cv_variant_roundtrip(session):
         master_cv_id=master.id,
         slug="staffty",
         title="Flutter Full Stack",
-        company="Staffty",
-        content_markdown="# CV for Staffty",
+        company="Acme Corp",
+        content_markdown="# CV for Acme Corp",
         status=CVVariantStatus.active,
     )
     session.add(variant)
@@ -40,7 +40,7 @@ async def test_create_cv_variant_roundtrip(session):
         await session.execute(select(CVVariant).where(CVVariant.slug == "staffty"))
     ).scalar_one()
     assert loaded.id is not None
-    assert loaded.company == "Staffty"
+    assert loaded.company == "Acme Corp"
     assert loaded.status == CVVariantStatus.active
 
 

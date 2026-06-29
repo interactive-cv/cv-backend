@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     secret_key: str
     ip_hash_secret: str
     allowed_origins: str = "http://localhost:3000"
-    contacts_fallback: str = "vrg18@vk.com · Telegram @vrg18"
+    contacts_fallback: str = ""
     zai_api_key: str = ""
     zai_api_base: str = "https://api.z.ai/api/coding/paas/v4"
     zai_model: str = "glm-4.7"

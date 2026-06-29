@@ -12,17 +12,17 @@ def test_master_cv_out_excludes_secret_fields():
         skills_core={},
         skills_familiar={},
         languages={},
-        format={"city": "Геленджик"},
+        format={"city": "Москва"},
     ).model_dump()
     assert "vacancy_text" not in payload
-    assert payload["format"]["city"] == "Геленджик"
+    assert payload["format"]["city"] == "Москва"
 
 
 def test_cv_variant_out_excludes_vacancy_text():
     payload = CVVariantOut(
         slug="staffty",
         title="Flutter Full Stack",
-        company="Staffty",
+        company="Acme Corp",
         content_markdown="# CV",
     ).model_dump()
     assert "vacancy_text" not in payload

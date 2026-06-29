@@ -11,14 +11,14 @@ import pytest
 from app.llm.prompts import build_system_prompt
 from app.llm.client import stream_chat
 
-# Реальный CV из seed как контекст (тот, что в RAG).
+# Демонстрационный CV-контекст для e2e-проверок RAG.
 CV_MD = """\
-# Григорьев Валерий
-Flutter / Fullstack разработчик.
+# Иванов Иван
+Fullstack-разработчик.
 
 ## Проекты
-- Магазин товаров для похудения (Flutter, Serverpod)
-- Сервис продвижения на маркетплейсах (Java, Spring)
+- Интернет-магазин (Next.js, FastAPI)
+- Аналитический сервис (Python, PostgreSQL)
 """
 
 
@@ -68,9 +68,9 @@ async def test_admits_unknown_salary():
 @pytest.mark.asyncio
 async def test_answers_real_flutter_project():
     """На вопрос по реальному CV-факту — отвечает по делу (упоминает проект)."""
-    answer = await _ask("Какие у тебя есть проекты на Flutter?")
+    answer = await _ask("Какие у тебя есть проекты?")
     a = answer.lower()
-    # Должен упомянуть реальный проект из CV.
-    assert "магазин" in a or "похуден" in a or "flutter" in a, (
+    # Должен упомянуть реальный проект из демонстрационного CV.
+    assert "магазин" in a or "аналитическ" in a or "fastapi" in a, (
         f"AI не ответил по фактам CV: {answer!r}"
     )

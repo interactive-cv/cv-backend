@@ -2,26 +2,26 @@ from app.services.cv_parser import parse_master_cv
 
 
 def test_parse_contacts():
-    md = """# Григорьев Валерий
+    md = """# Иванов Иван
 
 ## Контакты
 
-- **Email**: vrg18@vk.com
-- **Telegram**: @vrg18
-- **Город**: Геленджик
-- **Формат работы**: только удалёнка, без релокации
-- **GitHub**: github.com/vrg18
+- **Email**: ivan@example.com
+- **Telegram**: @ivan
+- **Город**: Москва
+- **Формат работы**: удалёнка
+- **GitHub**: github.com/ivan
 """
     out = parse_master_cv(md)
-    assert out["contacts"]["email"] == "vrg18@vk.com"
-    assert out["contacts"]["telegram"] == "vrg18"
-    assert out["contacts"]["city"] == "Геленджик"
-    assert out["contacts"]["format"] == "только удалёнка, без релокации"
-    assert out["contacts"]["github"] == "github.com/vrg18"
+    assert out["contacts"]["email"] == "ivan@example.com"
+    assert out["contacts"]["telegram"] == "ivan"
+    assert out["contacts"]["city"] == "Москва"
+    assert out["contacts"]["format"] == "удалёнка"
+    assert out["contacts"]["github"] == "github.com/ivan"
 
 
 def test_parse_summary():
-    md = """# Григорьев Валерий
+    md = """# Иванов Иван
 
 ## Summary
 
@@ -60,9 +60,9 @@ def test_parse_languages():
 
 def test_parse_format():
     md = """## Формат работы
-- **Локация**: Геленджик
+- **Локация**: Москва
 - **Формат**: только удалёнка, без релокации
 """
     out = parse_master_cv(md)
-    assert out["format"]["city"] == "Геленджик"
+    assert out["format"]["city"] == "Москва"
     assert "удалёнка" in out["format"]["format"]

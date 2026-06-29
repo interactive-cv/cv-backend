@@ -7,7 +7,7 @@ async def test_get_variant_by_slug_success(client, sample_variant):
     assert res.status_code == 200
     data = res.json()
     assert data["slug"] == "staffty"
-    assert data["company"] == "Staffty"
+    assert data["company"] == "Acme Corp"
     # vacancy_text НЕ должен утекать в публичный API (§10 приватность)
     assert "vacancy_text" not in data
 
