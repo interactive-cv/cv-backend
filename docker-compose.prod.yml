@@ -1,6 +1,6 @@
-# Production для cv.libera.pro.
+# Production-конфиг. Замените домены/email на свои перед деплоем.
 # Интеграция: сеть 'libera' (external, edge SNI-preread :443 → default → web_nginx:9443).
-# Изоляция: postgres/fastapi/nextjs в сети 'internal' (недоступны VPN-контейнерам).
+# Изоляция: postgres/fastapi/nextjs в сети 'internal' (недоступны другим контейнерам).
 # web_nginx — мост: в обеих сетях (принимает от edge в libera, проксирует в internal).
 name: libera_cv
 
@@ -18,8 +18,8 @@ services:
     environment:
       - TZ=Europe/Moscow
       - LETSENCRYPT=true
-      - LE_EMAIL=vrg18@vk.com
-      - LE_FQDN=cv.libera.pro,libera.pro
+      - LE_EMAIL=you@example.com          # ← ваш email для Let's Encrypt
+      - LE_FQDN=cv.example.com            # ← ваш домен
       - SSL_CERT=cv-le-crt.pem
       - SSL_KEY=cv-le-key.pem
       - SSL_CHAIN_CERT=cv-le-chain-crt.pem
@@ -54,7 +54,7 @@ services:
     build:
       context: ../cv-frontend
       args:
-        NEXT_PUBLIC_API_URL: https://cv.libera.pro
+        NEXT_PUBLIC_API_URL: https://cv.example.com   # ← ваш домен
     image: libera-cv/nextjs
     container_name: libera_cv_nextjs
     restart: always
