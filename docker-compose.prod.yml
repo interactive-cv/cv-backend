@@ -59,6 +59,7 @@ services:
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://cv.example.com}
         NEXT_PUBLIC_OWNER_NAME: ${NEXT_PUBLIC_OWNER_NAME:-Имя Фамилия}
         NEXT_PUBLIC_OWNER_ROLE: ${NEXT_PUBLIC_OWNER_ROLE:-Fullstack}
+        NEXT_PUBLIC_OWNER_TAGS: ${NEXT_PUBLIC_OWNER_TAGS:-Fullstack, Next.js, FastAPI}
     image: libera-cv/nextjs
     container_name: libera_cv_nextjs
     restart: always
