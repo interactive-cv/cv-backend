@@ -3,6 +3,8 @@ from sqlalchemy import select
 
 from app.db import Base
 from app.models import (
+    Application,
+    ApplicationStatus,
     CVVariant,
     CVVariantStatus,
     LinkHit,
@@ -46,9 +48,9 @@ async def test_create_cv_variant_roundtrip(session):
 
 @pytest.mark.asyncio
 async def test_all_tables_creatable(session):
-    """Все 5 таблиц создаются и принимают данные (кросс-БД типы валидны)."""
+    """Все 6 таблиц создаются и принимают данные (кросс-БД типы валидны)."""
     assert set(Base.metadata.tables) == {
-        "master_cv", "cv_variant", "short_link", "link_hit", "project",
+        "master_cv", "cv_variant", "short_link", "link_hit", "project", "application",
     }
 
     master = MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV", version=1)
@@ -81,3 +83,23 @@ async def test_all_tables_creatable(session):
     proj = (await session.execute(select(Project))).scalar_one()
     assert proj.tags == ["flutter", "java"]
     assert proj.metrics == {"rps": 100}
+
+
+@pytest.mark.asyncio
+async def test_create_application_roundtrip(session):
+    app = Application(
+        company="Yandex",
+        role="Flutter Developer",
+        vacancy_text="Ищем Flutter-разработчика...",
+        cover_letter_md="# Cover letter",
+        slug="yandex-flutter",
+        status=ApplicationStatus.draft,
+    )
+    session.add(app)
+    await session.commit()
+    loaded = (
+        await session.execute(select(Application).where(Application.slug == "yandex-flutter"))
+    ).scalar_one()
+    assert loaded.id is not None
+    assert loaded.company == "Yandex"
+    assert loaded.status == ApplicationStatus.draft
