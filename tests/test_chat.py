@@ -100,3 +100,37 @@ async def test_chat_zai_failure_fallback(client, master_in_db):
     assert resp.status_code == 200
     assert "недоступен" in resp.text.lower() or "свяжитесь" in resp.text.lower()
 
+
+
+# ---- AI-генерация CV из вакансии ----
+
+
+def test_generate_prompt_grounds_in_cv_and_vacancy():
+    from app.llm.generate_prompt import build_generate_prompt
+
+    prompt = build_generate_prompt(
+        cv_markdown="# Иванов\nFlutter dev",
+        vacancy_text="Ищем senior Flutter",
+        selected_projects=["Магазин ЕС"],
+    )
+    assert "Иванов" in prompt
+    assert "senior Flutter" in prompt
+    assert "Магазин ЕС" in prompt
+    assert "не выдумывай" in prompt.lower()
+
+
+def test_parse_generate_response_extracts_both_sections():
+    from app.llm.generate_prompt import parse_generate_response
+
+    text = "===CV===\n# CV\nFlutter dev\n===COVER===\n# Cover\nПривет!"
+    cv, cover = parse_generate_response(text)
+    assert "# CV" in cv
+    assert "Привет!" in cover
+
+
+def test_parse_generate_response_fallback_no_markers():
+    from app.llm.generate_prompt import parse_generate_response
+
+    cv, cover = parse_generate_response("Просто текст без маркеров")
+    assert cv == "Просто текст без маркеров"
+    assert cover == ""
