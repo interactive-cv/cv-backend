@@ -24,6 +24,12 @@ CLAUDE.md
 .cursor/
 .aider*
 
+# Персональные seed-данные (имя, контакты, проекты владельца).
+# В open-source-репозитории лежат только *.example с нейтральным демо-контентом.
+# Реальные данные попадают на прод через rsync и не должны уходить в git.
+seed_data/master_cv.md
+seed_data/projects.json
+
 DEPLOY.md
 deploy.sh
 .superpowers/
