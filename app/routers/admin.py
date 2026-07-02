@@ -36,7 +36,9 @@ from app.schemas.application import (
 from app.schemas.cv import CVVariantCreateIn
 from app.schemas.link import LinkCreateIn
 
-router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
+# Prefix /api/admin/ чтобы не конфликтовать с фронтенд-маршрутом /admin (Next.js).
+# nginx: /api/admin/ → fastapi, /admin → nextjs (страница).
+router = APIRouter(prefix="/api/admin", dependencies=[Depends(require_admin)])
 
 # Алфавит коротких кодов: ТОЛЬКО буквы (без цифр) → гарантия isupper()=True (§4 верхний регистр).
 # 26^5 ≈ 11.9M вариантов — достаточно для коротких ссылок и устойчивее к digits-only edge case.
