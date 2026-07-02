@@ -192,18 +192,43 @@ async def create_application(
     )
     session.add(v)
     await session.flush()
+    cover_letter = body.cover_letter
+    short_link_code: str | None = None
+    short_url: str | None = None
+    # Если создаём сразу активным (published) — генерируем короткую ссылку
+    # и заменяем {CV_LINK} в cover letter. Это эквивалент ручной публикации.
+    if body.status == "active":
+        code = _generate_code()
+        link = ShortLink(
+            code=code,
+            cv_variant_id=v.id,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30),
+        )
+        session.add(link)
+        await session.flush()  # ShortLink должен существовать до FK-ссылки
+        short_link_code = code
+        short_url = f"{settings.site_url}/{code}"
+        if cover_letter and CV_LINK_PLACEHOLDER in cover_letter:
+            cover_letter = cover_letter.replace(CV_LINK_PLACEHOLDER, short_url)
     app = Application(
         company=body.company,
         role=body.role,
         vacancy_text=body.vacancy_text,
-        cover_letter=body.cover_letter,
+        cover_letter=cover_letter,
         slug=slug,
         cv_variant_id=v.id,
         status=ApplicationStatus(body.status),
+        short_link_code=short_link_code,
+        published_at=(
+            datetime.now(timezone.utc) if body.status == "active" else None
+        ),
     )
     session.add(app)
     await session.commit()
-    return {"id": str(app.id), "slug": app.slug}
+    result: dict = {"id": str(app.id), "slug": app.slug}
+    if short_url:
+        result["url"] = short_url
+    return result
 
 
 @router.get("/applications/{app_id}")
