@@ -11,7 +11,8 @@
 - **Python 3.12, FastAPI, Pydantic v2** — асинхронное REST API, типобезопасные схемы
 - **SQLAlchemy 2.0 (async) + Alembic** — ORM и миграции, кросс-БД типы (jsonb/uuid)
 - **PostgreSQL 16** — основное хранилище
-- **httpx** — стриминговый клиент к LLM (Server-Sent Events)
+- **httpx** — стриминговый клиент к LLM (Server-Sent Events) в паттерне RAG
+- **AI/LLM** — интеграция языковых моделей в продукт: RAG без векторной БД, prompt engineering с защитой от галлюцинаций, стриминг ответов (SSE)
 - **pytest, pytest-asyncio, respx** — 54 unit-теста + 3 e2e-теста RAG против реальной модели
 
 ## Что умеет
