@@ -1,13 +1,16 @@
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
 
 from app.db import Base
+
+if TYPE_CHECKING:
+    from app.models.interview import Interview
 
 
 def _utcnow() -> datetime:
@@ -45,3 +48,5 @@ class Application(Base):
     published_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+    interviews: Mapped[list["Interview"]] = relationship(back_populates="application")

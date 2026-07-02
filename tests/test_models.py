@@ -7,6 +7,7 @@ from app.models import (
     ApplicationStatus,
     CVVariant,
     CVVariantStatus,
+    Interview,
     LinkHit,
     MasterCV,
     Project,
@@ -48,9 +49,9 @@ async def test_create_cv_variant_roundtrip(session):
 
 @pytest.mark.asyncio
 async def test_all_tables_creatable(session):
-    """Все 6 таблиц создаются и принимают данные (кросс-БД типы валидны)."""
+    """Все 7 таблиц создаются и принимают данные (кросс-БД типы валидны)."""
     assert set(Base.metadata.tables) == {
-        "master_cv", "cv_variant", "short_link", "link_hit", "project", "application",
+        "master_cv", "cv_variant", "short_link", "link_hit", "project", "application", "interview",
     }
 
     master = MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV", version=1)
@@ -103,3 +104,23 @@ async def test_create_application_roundtrip(session):
     assert loaded.id is not None
     assert loaded.company == "Yandex"
     assert loaded.status == ApplicationStatus.draft
+
+
+@pytest.mark.asyncio
+async def test_create_interview_roundtrip(session):
+    from datetime import datetime, timezone, timedelta
+    # нужен Application (FK)
+    app = Application(company="X", role="R", vacancy_text="v", slug="x-1", status=ApplicationStatus.draft)
+    session.add(app)
+    await session.commit()
+    iv = Interview(
+        application_id=app.id,
+        scheduled_at=datetime.now(timezone.utc) + timedelta(days=3),
+        notes_before="Подготовить вопросы по Flutter",
+        notes_after=None,
+    )
+    session.add(iv)
+    await session.commit()
+    loaded = (await session.execute(select(Interview))).scalar_one()
+    assert loaded.notes_before == "Подготовить вопросы по Flutter"
+    assert loaded.notes_after is None
