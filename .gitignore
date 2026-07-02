@@ -32,4 +32,5 @@ seed_data/projects.json
 
 DEPLOY.md
 deploy.sh
+dev.sh
 .superpowers/
