@@ -34,3 +34,8 @@ DEPLOY.md
 deploy.sh
 dev.sh
 .superpowers/
+
+# Личные настройки IDE (Run-конфигурации, локальные пути к venv и т.п.).
+# Сам проект (.idea/misc.xml, modules.xml) может шариться между машинами,
+# но runConfigurations содержат абсолютные пути к venv — не для open-source.
+.idea/runConfigurations/
