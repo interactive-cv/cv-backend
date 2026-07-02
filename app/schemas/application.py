@@ -15,10 +15,10 @@ class GenerateIn(BaseModel):
 
 
 class GenerateOut(BaseModel):
-    """Результат генерации: CV и cover letter (markdown)."""
+    """Результат генерации: CV (markdown) и cover letter (плейн-текст)."""
 
     cv_markdown: str
-    cover_letter_md: str
+    cover_letter: str
 
 
 class ApplicationCreateIn(BaseModel):
@@ -27,7 +27,7 @@ class ApplicationCreateIn(BaseModel):
     company: str
     role: str
     vacancy_text: str
-    cover_letter_md: str = ""
+    cover_letter: str = ""
     cv_markdown: str
     slug: str
     status: Literal["draft", "active"] = "draft"
@@ -36,7 +36,7 @@ class ApplicationCreateIn(BaseModel):
 class ApplicationUpdateIn(BaseModel):
     """Редактирование отклика."""
 
-    cover_letter_md: str | None = None
+    cover_letter: str | None = None
     cv_markdown: str | None = None
     status: Literal["draft", "active", "archived"] | None = None
 
@@ -61,5 +61,5 @@ class ApplicationDetailOut(ApplicationOut):
 
     vacancy_text: str
     cv_markdown: str = ""
-    cover_letter_md: str = ""
+    cover_letter: str = ""
     last_click_at: datetime | None = None

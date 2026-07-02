@@ -92,7 +92,7 @@ async def test_create_application_roundtrip(session):
         company="Yandex",
         role="Flutter Developer",
         vacancy_text="Ищем Flutter-разработчика...",
-        cover_letter_md="# Cover letter",
+        cover_letter="# Cover letter",
         slug="yandex-flutter",
         status=ApplicationStatus.draft,
     )

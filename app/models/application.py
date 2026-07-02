@@ -32,7 +32,7 @@ class Application(Base):
     company: Mapped[str] = mapped_column(Text)
     role: Mapped[str] = mapped_column(Text)
     vacancy_text: Mapped[str] = mapped_column(Text)
-    cover_letter_md: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    cover_letter: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     slug: Mapped[str] = mapped_column(Text, unique=True, index=True)
     cv_variant_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         Uuid, ForeignKey("cv_variant.id"), nullable=True

@@ -11,7 +11,11 @@ from app.config import settings
 from app.deps import get_session, require_admin
 from app.errors import AppError
 from app.llm.client import stream_chat
-from app.llm.generate_prompt import build_generate_prompt, parse_generate_response
+from app.llm.generate_prompt import (
+    CV_LINK_PLACEHOLDER,
+    build_generate_prompt,
+    parse_generate_response,
+)
 from app.models import (
     Application,
     ApplicationStatus,
@@ -135,7 +139,7 @@ async def generate_cv(
     ):
         chunks.append(token)
     cv_md, cover_md = parse_generate_response("".join(chunks))
-    return GenerateOut(cv_markdown=cv_md, cover_letter_md=cover_md)
+    return GenerateOut(cv_markdown=cv_md, cover_letter=cover_md)
 
 
 @router.get("/applications")
@@ -192,7 +196,7 @@ async def create_application(
         company=body.company,
         role=body.role,
         vacancy_text=body.vacancy_text,
-        cover_letter_md=body.cover_letter_md,
+        cover_letter=body.cover_letter,
         slug=slug,
         cv_variant_id=v.id,
         status=ApplicationStatus(body.status),
@@ -226,7 +230,7 @@ async def get_application(
         status=a.status.value,
         vacancy_text=a.vacancy_text,
         cv_markdown=cv_md,
-        cover_letter_md=a.cover_letter_md or "",
+        cover_letter=a.cover_letter or "",
         total_clicks=total,
         unique_clicks=unique,
         short_link_code=a.short_link_code,
@@ -248,8 +252,8 @@ async def update_application(
     ).scalar_one_or_none()
     if not a:
         raise AppError("not_found", "Отклик не найден", 404)
-    if body.cover_letter_md is not None:
-        a.cover_letter_md = body.cover_letter_md
+    if body.cover_letter is not None:
+        a.cover_letter = body.cover_letter
     if body.cv_markdown is not None and a.cv_variant_id:
         v = await session.get(CVVariant, a.cv_variant_id)
         if v:
@@ -283,11 +287,20 @@ async def publish_application(
             expires_at=datetime.now(timezone.utc) + timedelta(days=30),
         )
         session.add(link)
+        # flush() сохраняет ShortLink в БД ДО того, как мы назначим FK
+        # на application.short_link_code. Иначе PostgreSQL нарушает FK-ограничение:
+        # application ссылается на ещё не существующую запись short_link.
+        await session.flush()
         a.short_link_code = code
     a.status = ApplicationStatus.active
     a.published_at = datetime.now(timezone.utc)
+    # заменяем плейсхолдер {CV_LINK} в cover letter на реальную короткую ссылку.
+    # LLM вставляет плейсхолдер при генерации; при публикации ссылка уже известна.
+    short_url = f"{settings.site_url}/{code}"
+    if a.cover_letter and CV_LINK_PLACEHOLDER in a.cover_letter:
+        a.cover_letter = a.cover_letter.replace(CV_LINK_PLACEHOLDER, short_url)
     await session.commit()
-    return {"id": str(a.id), "code": code, "url": f"{settings.site_url}/{code}"}
+    return {"id": str(a.id), "code": code, "url": short_url}
 
 
 @router.post("/applications/{app_id}/archive")

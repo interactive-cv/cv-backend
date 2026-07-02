@@ -158,7 +158,7 @@ async def test_admin_generate_cv(client, session):
     assert res.status_code == 200
     data = res.json()
     assert "# CV" in data["cv_markdown"]
-    assert "# Cover" in data["cover_letter_md"]
+    assert "# Cover" in data["cover_letter"]
 
 
 @pytest.mark.asyncio
@@ -171,7 +171,7 @@ async def test_admin_create_and_list_application(client, session):
             "role": "Dev",
             "vacancy_text": "Текст вакансии",
             "cv_markdown": "# CV",
-            "cover_letter_md": "# Cover",
+            "cover_letter": "# Cover",
             "slug": "acme-dev",
         },
     )
@@ -196,13 +196,15 @@ async def test_admin_create_and_list_application(client, session):
 
 @pytest.mark.asyncio
 async def test_admin_publish_application(client, session):
-    # создаём черновик
+    # создаём черновик с плейсхолдером ссылки в cover letter
     res = await client.post(
         "/admin/applications",
         headers=VALID,
         json={
             "company": "X", "role": "R", "vacancy_text": "v",
-            "cv_markdown": "# m", "cover_letter_md": "", "slug": "x-1",
+            "cv_markdown": "# m",
+            "cover_letter": "Здравствуйте!\nМоё CV: {CV_LINK}",
+            "slug": "x-1",
         },
     )
     app_id = res.json()["id"]
@@ -212,6 +214,11 @@ async def test_admin_publish_application(client, session):
     data = res.json()
     assert "code" in data
     assert data["url"].startswith("https://")
+    short_url = data["url"]
+    # плейсхолдер {CV_LINK} должен быть заменён на реальную короткую ссылку
+    detail = (await client.get(f"/admin/applications/{app_id}", headers=VALID)).json()
+    assert "{CV_LINK}" not in detail["cover_letter"], "плейсхолдер не заменён"
+    assert short_url in detail["cover_letter"], "ссылка не вставлена в cover letter"
 
 
 @pytest.mark.asyncio
@@ -221,7 +228,7 @@ async def test_admin_archive_application(client, session):
         headers=VALID,
         json={
             "company": "Z", "role": "R", "vacancy_text": "v",
-            "cv_markdown": "# m", "cover_letter_md": "", "slug": "z-1",
+            "cv_markdown": "# m", "cover_letter": "", "slug": "z-1",
         },
     )
     app_id = res.json()["id"]

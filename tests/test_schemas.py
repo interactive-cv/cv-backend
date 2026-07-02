@@ -72,5 +72,5 @@ def test_generate_in_validates():
 def test_generate_out_has_both_texts():
     from app.schemas.application import GenerateOut
 
-    g = GenerateOut(cv_markdown="# CV", cover_letter_md="# Cover")
-    assert g.cover_letter_md == "# Cover"
+    g = GenerateOut(cv_markdown="# CV", cover_letter="# Cover")
+    assert g.cover_letter == "# Cover"
