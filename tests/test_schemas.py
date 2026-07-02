@@ -40,3 +40,37 @@ def test_chat_request_validates_message_length():
     req = ChatRequest(message="Какие Flutter-проекты?")
     assert req.message == "Какие Flutter-проекты?"
     assert req.session_id is None
+
+
+# ---- Application schemas ----
+
+
+def test_application_out_excludes_vacancy_text():
+    from app.schemas.application import ApplicationOut
+    import uuid
+
+    payload = ApplicationOut(
+        id=uuid.uuid4(),
+        company="Yandex",
+        role="Flutter",
+        slug="yandex",
+        status="draft",
+        total_clicks=0,
+        unique_clicks=0,
+        created_at="2026-07-01T00:00:00Z",
+    ).model_dump()
+    assert "vacancy_text" not in payload
+
+
+def test_generate_in_validates():
+    from app.schemas.application import GenerateIn
+
+    g = GenerateIn(company="Y", role="R", vacancy_text="...", selected_projects=["P1"])
+    assert g.selected_projects == ["P1"]
+
+
+def test_generate_out_has_both_texts():
+    from app.schemas.application import GenerateOut
+
+    g = GenerateOut(cv_markdown="# CV", cover_letter_md="# Cover")
+    assert g.cover_letter_md == "# Cover"
