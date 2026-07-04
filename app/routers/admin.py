@@ -417,13 +417,16 @@ def _config_row(row: ConfigText | None, key: str) -> ConfigTextOut:
 async def get_settings(
     session: AsyncSession = Depends(get_session),
 ) -> SettingsOut:
-    """Все редактируемые тексты (5 ключей) для страницы Настроек."""
+    """Все редактируемые тексты (6 ключей) для страницы Настроек."""
     rows = await get_all_config(session)
     return SettingsOut(
         master_cv=_config_row(rows.get("master_cv"), "master_cv"),
         readme=_config_row(rows.get("readme"), "readme"),
         prompt_chat=_config_row(rows.get("prompt_chat"), "prompt_chat"),
         prompt_generate=_config_row(rows.get("prompt_generate"), "prompt_generate"),
+        prompt_generate_freelance=_config_row(
+            rows.get("prompt_generate_freelance"), "prompt_generate_freelance"
+        ),
         prompt_cv_edit=_config_row(rows.get("prompt_cv_edit"), "prompt_cv_edit"),
     )
 
