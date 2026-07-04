@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -522,6 +523,47 @@ async def delete_application(
     await session.delete(a)
     await session.commit()
     return {"id": str(a.id), "deleted": True}
+
+
+@router.get("/applications/{app_id}/pdf")
+async def download_cv_pdf(
+    app_id: str, session: AsyncSession = Depends(get_session)
+) -> Response:
+    """Скачивание CV отклика в PDF (для отклика на FL.ru и др.).
+
+    Генерирует PDF из markdown CV-варианта через fpdf2 + Unicode-шрифт.
+    Возвращает application/pdf для скачивания.
+    """
+    from app.services.pdf_export import generate_cv_pdf
+
+    a = (
+        await session.execute(
+            select(Application).where(Application.id == uuid.UUID(app_id))
+        )
+    ).scalar_one_or_none()
+    if not a:
+        raise AppError("not_found", "Отклик не найден", 404)
+
+    cv_markdown = ""
+    if a.cv_variant_id:
+        v = await session.get(CVVariant, a.cv_variant_id)
+        if v:
+            cv_markdown = v.content_markdown
+    if not cv_markdown:
+        raise AppError("not_found", "CV не найдено в отклике", 404)
+
+    try:
+        title = f"{a.company or a.role} — {a.role}" if a.company else a.role
+        pdf_bytes = generate_cv_pdf(cv_markdown, title)
+    except RuntimeError as e:
+        raise AppError("server_error", str(e), 500)
+
+    filename = f"CV_{(a.company or a.role)}_{a.role}.pdf".replace(" ", "_").replace("/", "-")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ===== Settings: редактируемые тексты (мастер-CV, README, промпты) =====

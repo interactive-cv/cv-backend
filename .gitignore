@@ -40,3 +40,7 @@ dev.sh
 # Сам проект (.idea/misc.xml, modules.xml) может шариться между машинами,
 # но runConfigurations содержат абсолютные пути к venv — не для open-source.
 .idea/runConfigurations/
+
+# TTF-шрифты для PDF-генерации (dev: системные Arial, prod: apt fonts-dejavu-core).
+# Не коммитятся: проприетарные (Arial) или ставятся через пакетный менеджер (DejaVu).
+app/assets/fonts/*.ttf

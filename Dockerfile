@@ -4,6 +4,10 @@
 FROM python:3.12 AS base
 WORKDIR /app
 
+# DejaVu fonts — для PDF-генерации CV (кириллица через Unicode TTF).
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 # Кэшируемый слой зависимостей: ставим uv и зависимости ПЕРЕД копированием кода.
 RUN pip install --no-cache-dir uv
 COPY pyproject.toml ./
