@@ -35,4 +35,11 @@ class ConfigText(Base):
 
 
 # Допустимые ключи (для валидации в API и seed).
-CONFIG_KEYS = ["master_cv", "readme", "prompt_chat", "prompt_generate", "prompt_cv_edit"]
+CONFIG_KEYS = [
+    "master_cv",
+    "readme",
+    "prompt_chat",
+    "prompt_generate",
+    "prompt_generate_freelance",
+    "prompt_cv_edit",
+]

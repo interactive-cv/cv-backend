@@ -6,12 +6,13 @@ from pydantic import BaseModel
 
 
 class GenerateIn(BaseModel):
-    """Вход AI-генерации CV из вакансии."""
+    """Вход AI-генерации CV из вакансии или фриланс-заказа."""
 
     company: str
     role: str
     vacancy_text: str
     selected_projects: list[str] = []
+    kind: Literal["vacancy", "freelance"] = "vacancy"
 
 
 class GenerateOut(BaseModel):
@@ -31,6 +32,14 @@ class ApplicationCreateIn(BaseModel):
     cv_markdown: str
     slug: str
     status: Literal["draft", "active"] = "draft"
+    kind: Literal["vacancy", "freelance"] = "vacancy"
+    source_url: str | None = None
+    chat_url: str | None = None
+    budget: str | None = None
+    applicant_count: int | None = None
+    deadline: datetime | None = None
+    expected_term: str | None = None
+    rating: int | None = None
 
 
 class ApplicationUpdateIn(BaseModel):
@@ -39,6 +48,14 @@ class ApplicationUpdateIn(BaseModel):
     cover_letter: str | None = None
     cv_markdown: str | None = None
     status: Literal["draft", "active", "archived"] | None = None
+    kind: Literal["vacancy", "freelance"] | None = None
+    source_url: str | None = None
+    chat_url: str | None = None
+    budget: str | None = None
+    applicant_count: int | None = None
+    deadline: datetime | None = None
+    expected_term: str | None = None
+    rating: int | None = None
 
 
 class ApplicationOut(BaseModel):
@@ -49,9 +66,17 @@ class ApplicationOut(BaseModel):
     role: str
     slug: str
     status: str
+    kind: str = "vacancy"
     total_clicks: int = 0
     unique_clicks: int = 0
     short_link_code: str | None = None
+    source_url: str | None = None
+    chat_url: str | None = None
+    budget: str | None = None
+    applicant_count: int | None = None
+    deadline: datetime | None = None
+    expected_term: str | None = None
+    rating: int | None = None
     created_at: datetime
     published_at: datetime | None = None
 

@@ -57,15 +57,25 @@ async def build_generate_prompt(
     cv_markdown: str,
     vacancy_text: str,
     selected_projects: list[str],
+    kind: str = "vacancy",
 ) -> str:
     """Собирает промпт для генерации CV и cover letter.
 
-    Шаблон берётся из БД (config_text.prompt_generate) если есть, иначе —
-    fallback на кодовую константу GENERATE_PROMPT_TEMPLATE.
+    Шаблон берётся из БД. Для фриланс-заказов (kind=freelance) — отдельный
+    ключ prompt_generate_freelance, для вакансий — prompt_generate.
+    Fallback на кодовые константы GENERATE_PROMPT_TEMPLATE / DEFAULT_FREELANCE.
     """
     from app.services.config_text import get_config_value
 
-    template = await get_config_value(session, "prompt_generate") or GENERATE_PROMPT_TEMPLATE
+    if kind == "freelance":
+        from app.seed_defaults import DEFAULT_PROMPT_GENERATE_FREELANCE
+
+        template = (
+            await get_config_value(session, "prompt_generate_freelance")
+            or DEFAULT_PROMPT_GENERATE_FREELANCE
+        )
+    else:
+        template = await get_config_value(session, "prompt_generate") or GENERATE_PROMPT_TEMPLATE
     projects_str = ", ".join(selected_projects) if selected_projects else "на своё усмотрение"
     return template.format(
         cv_markdown=cv_markdown,

@@ -18,6 +18,7 @@ from app.llm.generate_prompt import (
 )
 from app.models import (
     Application,
+    ApplicationKind,
     ApplicationStatus,
     ConfigText,
     CVVariant,
@@ -144,7 +145,7 @@ async def generate_cv(
     if not master:
         raise AppError("not_found", "Мастер-CV не найден", 404)
     prompt = await build_generate_prompt(
-        session, master.full_markdown, body.vacancy_text, body.selected_projects
+        session, master.full_markdown, body.vacancy_text, body.selected_projects, body.kind
     )
     chunks: list[str] = []
     async for token in stream_chat(
@@ -172,9 +173,17 @@ async def list_applications(
                 role=a.role,
                 slug=a.slug,
                 status=a.status.value,
+                kind=a.kind.value if a.kind else "vacancy",
                 total_clicks=total,
                 unique_clicks=unique,
                 short_link_code=a.short_link_code,
+                source_url=a.source_url,
+                chat_url=a.chat_url,
+                budget=a.budget,
+                applicant_count=a.applicant_count,
+                deadline=a.deadline,
+                expected_term=a.expected_term,
+                rating=a.rating,
                 created_at=a.created_at,
                 published_at=a.published_at,
             )
@@ -232,6 +241,14 @@ async def create_application(
         cv_variant_id=v.id,
         status=ApplicationStatus(body.status),
         short_link_code=short_link_code,
+        kind=ApplicationKind(body.kind),
+        source_url=body.source_url,
+        chat_url=body.chat_url,
+        budget=body.budget,
+        applicant_count=body.applicant_count,
+        deadline=body.deadline,
+        expected_term=body.expected_term,
+        rating=body.rating,
         published_at=(
             datetime.now(timezone.utc) if body.status == "active" else None
         ),
@@ -266,12 +283,20 @@ async def get_application(
         role=a.role,
         slug=a.slug,
         status=a.status.value,
+        kind=a.kind.value if a.kind else "vacancy",
         vacancy_text=a.vacancy_text,
         cv_markdown=cv_md,
         cover_letter=a.cover_letter or "",
         total_clicks=total,
         unique_clicks=unique,
         short_link_code=a.short_link_code,
+        source_url=a.source_url,
+        chat_url=a.chat_url,
+        budget=a.budget,
+        applicant_count=a.applicant_count,
+        deadline=a.deadline,
+        expected_term=a.expected_term,
+        rating=a.rating,
         created_at=a.created_at,
         published_at=a.published_at,
     )
@@ -298,6 +323,23 @@ async def update_application(
             v.content_markdown = body.cv_markdown
     if body.status:
         a.status = ApplicationStatus(body.status)
+    if body.kind is not None:
+        a.kind = ApplicationKind(body.kind)
+    # Новые поля отклика (freelance + общие)
+    if body.source_url is not None:
+        a.source_url = body.source_url
+    if body.chat_url is not None:
+        a.chat_url = body.chat_url
+    if body.budget is not None:
+        a.budget = body.budget
+    if body.applicant_count is not None:
+        a.applicant_count = body.applicant_count
+    if body.deadline is not None:
+        a.deadline = body.deadline
+    if body.expected_term is not None:
+        a.expected_term = body.expected_term
+    if body.rating is not None:
+        a.rating = body.rating
     await session.commit()
     return {"id": str(a.id), "status": a.status.value}
 

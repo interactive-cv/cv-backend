@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Text
+from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
 
@@ -23,8 +23,17 @@ class ApplicationStatus(str, Enum):
     archived = "archived"
 
 
+class ApplicationKind(str, Enum):
+    """Тип отклика: вакансия (полная занятость) или фриланс-заказ."""
+
+    vacancy = "vacancy"
+    freelance = "freelance"
+
+
 class Application(Base):
-    """Отклик на вакансию: объединяет CV, cover letter, ссылку и аналитику."""
+    """Отклик на вакансию или фриланс-заказ: объединяет CV, cover letter,
+    ссылку и аналитику.
+    """
 
     __tablename__ = "application"
 
@@ -44,6 +53,26 @@ class Application(Base):
         SAEnum(ApplicationStatus, name="applicationstatus"),
         default=ApplicationStatus.draft,
     )
+    # Тип отклика: вакансия (vacancy) или фриланс-заказ (freelance).
+    kind: Mapped[ApplicationKind] = mapped_column(
+        SAEnum(ApplicationKind, name="applicationkind"),
+        default=ApplicationKind.vacancy,
+    )
+    # Ссылка на вакансию/проект (FL.ru и др.). Для всех типов.
+    source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Ссылка на диалог с HR/заказчиком. Для всех типов.
+    chat_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Бюджет заказа («50 000 ₽», «$500-1000»). В основном для freelance.
+    budget: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Конкурс: сколько откликнулись на проект. В основном для freelance.
+    applicant_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Срок сдачи заказа. В основном для freelance.
+    deadline: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Ожидаемый срок найма/сотрудничества (текст, на усмотрение владельца).
+    expected_term: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Внутренний рейтинг (1-5 звёзд). Для всех типов.
+    rating: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     published_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
