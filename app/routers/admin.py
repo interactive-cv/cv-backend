@@ -410,14 +410,9 @@ async def delete_application(
 ) -> dict:
     """Полное удаление отклика со всеми артефактами.
 
-    Каскадное удаление в правильном порядке (зависимые → главная):
-    1. link_hit (клики по короткой ссылке)
-    2. interview (собеседования)
-    3. short_link (короткая ссылка, если есть)
-    4. cv_variant (вариант CV, если есть и не используется другими откликами)
-    5. application (сама запись)
-
-    Необратимо — подтверждение на фронтенде.
+    Каскадное удаление: сначала обнуляем FK на application (чтобы не нарушить
+    целостность при удалении зависимых записей), flush, затем удаляем
+    зависимые записи, затем саму application.
     """
     a = (
         await session.execute(
@@ -427,17 +422,26 @@ async def delete_application(
     if not a:
         raise AppError("not_found", "Отклик не найден", 404)
 
-    # 1. Удаляем клики по короткой ссылке
-    if a.short_link_code:
+    # Сохраняем ID зависимостей до обнуления FK
+    code_to_delete = a.short_link_code
+    variant_to_delete = a.cv_variant_id
+
+    # 1. Обнуляем FK на application, чтобы корректно удалить зависимые записи
+    a.short_link_code = None
+    a.cv_variant_id = None
+    await session.flush()
+
+    # 2. Удаляем клики по короткой ссылке
+    if code_to_delete:
         hits = (
             await session.execute(
-                select(LinkHit).where(LinkHit.short_link_code == a.short_link_code)
+                select(LinkHit).where(LinkHit.short_link_code == code_to_delete)
             )
         ).scalars().all()
         for h in hits:
             await session.delete(h)
 
-    # 2. Удаляем собеседования
+    # 3. Удаляем собеседования
     interviews = (
         await session.execute(
             select(Interview).where(Interview.application_id == a.id)
@@ -446,28 +450,28 @@ async def delete_application(
     for iv in interviews:
         await session.delete(iv)
 
-    # 3. Удаляем короткую ссылку (если есть)
-    if a.short_link_code:
-        link = await session.get(ShortLink, a.short_link_code)
+    # 4. Удаляем короткую ссылку (если есть)
+    if code_to_delete:
+        link = await session.get(ShortLink, code_to_delete)
         if link:
             await session.delete(link)
 
-    # 4. Удаляем cv_variant (если есть и не используется другими откликами)
-    if a.cv_variant_id:
+    # 5. Удаляем cv_variant (если есть и не используется другими откликами)
+    if variant_to_delete:
         other_apps = (
             await session.execute(
                 select(Application).where(
-                    Application.cv_variant_id == a.cv_variant_id,
+                    Application.cv_variant_id == variant_to_delete,
                     Application.id != a.id,
                 )
             )
         ).scalars().all()
         if not other_apps:
-            v = await session.get(CVVariant, a.cv_variant_id)
+            v = await session.get(CVVariant, variant_to_delete)
             if v:
                 await session.delete(v)
 
-    # 5. Удаляем сам отклик
+    # 6. Удаляем сам отклик
     await session.delete(a)
     await session.commit()
     return {"id": str(a.id), "deleted": True}
