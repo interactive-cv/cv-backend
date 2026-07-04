@@ -2,8 +2,13 @@
 
 Имя кандидата берётся из первой строки CV (`# Имя Фамилия`),
 поэтому промпт адаптируется под любого владельца без правки кода.
+
+Шаблон промпта хранится в БД (config_text.prompt_chat) и редактируется через
+админку. Если записи в БД нет — fallback на SYSTEM_PROMPT_TEMPLATE из кода.
 """
 import re
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 SYSTEM_PROMPT_TEMPLATE = """\
 Ты — AI-ассистент {name}, отвечаешь от его/её имени как кандидата.
@@ -31,7 +36,14 @@ def _extract_name(cv_markdown: str) -> str:
     return m.group(1).strip() if m else "кандидата"
 
 
-def build_system_prompt(cv_markdown: str) -> str:
-    """Собирает system prompt с CV как контекстом (RAG без векторной БД)."""
+async def build_system_prompt(session: AsyncSession, cv_markdown: str) -> str:
+    """Собирает system prompt с CV как контекстом (RAG без векторной БД).
+
+    Шаблон берётся из БД (config_text.prompt_chat) если есть, иначе —
+    fallback на кодовую константу SYSTEM_PROMPT_TEMPLATE.
+    """
+    from app.services.config_text import get_config_value
+
+    template = await get_config_value(session, "prompt_chat") or SYSTEM_PROMPT_TEMPLATE
     name = _extract_name(cv_markdown)
-    return SYSTEM_PROMPT_TEMPLATE.format(name=name, cv_markdown=cv_markdown)
+    return template.format(name=name, cv_markdown=cv_markdown)

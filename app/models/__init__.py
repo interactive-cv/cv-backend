@@ -5,5 +5,6 @@ from app.models.link_hit import LinkHit
 from app.models.project import Project
 from app.models.application import Application, ApplicationStatus
 from app.models.interview import Interview
+from app.models.config_text import ConfigText, CONFIG_KEYS
 
-__all__ = ["MasterCV", "CVVariant", "CVVariantStatus", "ShortLink", "LinkHit", "Project", "Application", "ApplicationStatus", "Interview"]
+__all__ = ["MasterCV", "CVVariant", "CVVariantStatus", "ShortLink", "LinkHit", "Project", "Application", "ApplicationStatus", "Interview", "ConfigText", "CONFIG_KEYS"]

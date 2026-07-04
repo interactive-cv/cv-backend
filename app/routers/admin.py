@@ -19,6 +19,7 @@ from app.llm.generate_prompt import (
 from app.models import (
     Application,
     ApplicationStatus,
+    ConfigText,
     CVVariant,
     CVVariantStatus,
     LinkHit,
@@ -35,6 +36,16 @@ from app.schemas.application import (
 )
 from app.schemas.cv import CVVariantCreateIn
 from app.schemas.link import LinkCreateIn
+from app.schemas.settings import (
+    ConfigTextOut,
+    CvEditApplyIn,
+    CvEditInstructionIn,
+    CvEditPreviewOut,
+    SettingsOut,
+    SettingsUpdateIn,
+)
+from app.services.config_text import get_all_config, get_config_value, set_config_value
+from app.services.cv_parser import parse_master_cv
 
 # Prefix /api/admin/ чтобы не конфликтовать с фронтенд-маршрутом /admin (Next.js).
 # nginx: /api/admin/ → fastapi, /admin → nextjs (страница).
@@ -132,8 +143,8 @@ async def generate_cv(
     ).scalar_one_or_none()
     if not master:
         raise AppError("not_found", "Мастер-CV не найден", 404)
-    prompt = build_generate_prompt(
-        master.full_markdown, body.vacancy_text, body.selected_projects
+    prompt = await build_generate_prompt(
+        session, master.full_markdown, body.vacancy_text, body.selected_projects
     )
     chunks: list[str] = []
     async for token in stream_chat(
@@ -348,3 +359,104 @@ async def archive_application(
             v.status = CVVariantStatus.archived
     await session.commit()
     return {"id": str(a.id), "status": "archived"}
+
+
+# ===== Settings: редактируемые тексты (мастер-CV, README, промпты) =====
+
+
+def _config_row(row: ConfigText | None, key: str) -> ConfigTextOut:
+    """Безопасная обёртка: если записи нет в БД — возвращаем пустую с ключом."""
+    if row is None:
+        return ConfigTextOut(key=key, value="", updated_at=datetime.now(timezone.utc))
+    return ConfigTextOut(key=row.key, value=row.value, updated_at=row.updated_at)
+
+
+@router.get("/settings")
+async def get_settings(
+    session: AsyncSession = Depends(get_session),
+) -> SettingsOut:
+    """Все редактируемые тексты (5 ключей) для страницы Настроек."""
+    rows = await get_all_config(session)
+    return SettingsOut(
+        master_cv=_config_row(rows.get("master_cv"), "master_cv"),
+        readme=_config_row(rows.get("readme"), "readme"),
+        prompt_chat=_config_row(rows.get("prompt_chat"), "prompt_chat"),
+        prompt_generate=_config_row(rows.get("prompt_generate"), "prompt_generate"),
+        prompt_cv_edit=_config_row(rows.get("prompt_cv_edit"), "prompt_cv_edit"),
+    )
+
+
+@router.patch("/settings")
+async def update_settings(
+    body: SettingsUpdateIn,
+    session: AsyncSession = Depends(get_session),
+) -> SettingsOut:
+    """Частичное обновление настроек. При сохранении master_cv синхронно
+    обновляет master_cv.full_markdown и структурированные поля (парсер).
+    """
+    updates = body.model_dump(exclude_none=True)
+    for key, value in updates.items():
+        await set_config_value(session, key, value)
+
+    # master_cv — особый: синхронизируем с master_cv таблицей (full_markdown
+    # + перегенерация структурированных полей через парсер).
+    if "master_cv" in updates:
+        md = updates["master_cv"]
+        parsed = parse_master_cv(md)
+        existing = await session.get(MasterCV, 1)
+        if existing:
+            existing.full_markdown = md
+            existing.summary = parsed["summary"]
+            existing.contacts = parsed["contacts"]
+            existing.skills_core = parsed["skills_core"]
+            existing.skills_familiar = parsed["skills_familiar"]
+            existing.languages = parsed["languages"]
+            existing.format = parsed["format"]
+            existing.version += 1
+            await session.flush()
+
+    await session.commit()
+    return await get_settings(session)
+
+
+@router.post("/settings/master-cv/preview")
+async def preview_master_cv_edit(
+    body: CvEditInstructionIn,
+    session: AsyncSession = Depends(get_session),
+) -> CvEditPreviewOut:
+    """AI-правка мастер-CV: LLM получает текущий CV + инструкцию, возвращает
+    предпросмотр обновлённого markdown БЕЗ сохранения в БД.
+    Владелец видит результат и решает применить (/apply) или отклонить.
+    """
+    current_cv = await get_config_value(session, "master_cv")
+    if not current_cv:
+        raise AppError("not_found", "Мастер-CV не задан в настройках", 404)
+
+    template = await get_config_value(session, "prompt_cv_edit")
+    if not template:
+        from app.seed_defaults import DEFAULT_PROMPT_CV_EDIT
+
+        template = DEFAULT_PROMPT_CV_EDIT
+
+    prompt = template.format(current_cv=current_cv, instruction=body.instruction)
+    chunks: list[str] = []
+    async for token in stream_chat(
+        [{"role": "user", "content": "Обнови CV согласно инструкции"}], prompt
+    ):
+        chunks.append(token)
+    preview = "".join(chunks).strip()
+    return CvEditPreviewOut(preview_markdown=preview)
+
+
+@router.post("/settings/master-cv/apply")
+async def apply_master_cv(
+    body: CvEditApplyIn,
+    session: AsyncSession = Depends(get_session),
+) -> SettingsOut:
+    """Применить предпросмотр (или ручную правку) к мастер-CV.
+    Сохраняет в config_text.master_cv И в master_cv (full_markdown + парсинг).
+    Эквивалентно PATCH /settings с {master_cv: markdown}.
+    """
+    return await update_settings(
+        SettingsUpdateIn(master_cv=body.markdown), session
+    )

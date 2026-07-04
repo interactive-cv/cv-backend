@@ -35,7 +35,7 @@ async def chat(
     if not master:
         raise AppError("not_found", "Мастер-CV не найден", 404)
 
-    system = build_system_prompt(master.full_markdown)
+    system = await build_system_prompt(session, master.full_markdown)
     messages = [{"role": "user", "content": req.message}]
 
     async def gen():

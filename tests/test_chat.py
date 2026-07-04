@@ -8,9 +8,10 @@ from app.main import create_app  # noqa: F401 — гарантирует, что
 from app.models import MasterCV
 
 
-def test_system_prompt_grounds_in_cv_and_forbids_invention():
+@pytest.mark.asyncio
+async def test_system_prompt_grounds_in_cv_and_forbids_invention(session):
     cv_md = "# CV\nЯ работаю с Flutter."
-    prompt = build_system_prompt(cv_md)
+    prompt = await build_system_prompt(session, cv_md)
     # CV-контекст встроен
     assert "Flutter" in prompt
     # явный запрет выдумывать
@@ -105,10 +106,12 @@ async def test_chat_zai_failure_fallback(client, master_in_db):
 # ---- AI-генерация CV из вакансии ----
 
 
-def test_generate_prompt_grounds_in_cv_and_vacancy():
+@pytest.mark.asyncio
+async def test_generate_prompt_grounds_in_cv_and_vacancy(session):
     from app.llm.generate_prompt import build_generate_prompt
 
-    prompt = build_generate_prompt(
+    prompt = await build_generate_prompt(
+        session,
         cv_markdown="# Иванов\nFlutter dev",
         vacancy_text="Ищем senior Flutter",
         selected_projects=["Магазин ЕС"],

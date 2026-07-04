@@ -52,12 +52,22 @@ GENERATE_PROMPT_TEMPLATE = """\
 """
 
 
-def build_generate_prompt(
-    cv_markdown: str, vacancy_text: str, selected_projects: list[str]
+async def build_generate_prompt(
+    session,
+    cv_markdown: str,
+    vacancy_text: str,
+    selected_projects: list[str],
 ) -> str:
-    """Собирает промпт для генерации CV и cover letter."""
+    """Собирает промпт для генерации CV и cover letter.
+
+    Шаблон берётся из БД (config_text.prompt_generate) если есть, иначе —
+    fallback на кодовую константу GENERATE_PROMPT_TEMPLATE.
+    """
+    from app.services.config_text import get_config_value
+
+    template = await get_config_value(session, "prompt_generate") or GENERATE_PROMPT_TEMPLATE
     projects_str = ", ".join(selected_projects) if selected_projects else "на своё усмотрение"
-    return GENERATE_PROMPT_TEMPLATE.format(
+    return template.format(
         cv_markdown=cv_markdown,
         vacancy_text=vacancy_text,
         selected_projects=projects_str,
