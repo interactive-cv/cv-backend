@@ -3,7 +3,7 @@ import string
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -135,6 +135,48 @@ async def _count_clicks(session: AsyncSession, code: str | None) -> tuple[int, i
     return total, unique
 
 
+@router.post("/applications/upload-spec")
+async def upload_spec_pdf(
+    file: UploadFile = File(...),
+) -> dict:
+    """Загрузка ТЗ в PDF → извлечение текста через pypdf.
+
+    Принимает PDF-файл, парсит его в текст, возвращает извлечённый текст.
+    Текст НЕ сохраняется в БД — фронтенд показывает его для предпросмотра/правки,
+    затем передаёт в generate/create как spec_text.
+    """
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise AppError("bad_request", "Только PDF-файлы", 400)
+
+    content = await file.read()
+    if not content:
+        raise AppError("bad_request", "Пустой файл", 400)
+
+    # pypdf — чистый Python, без системных зависимостей.
+    import io
+
+    from pypdf import PdfReader
+
+    try:
+        reader = PdfReader(io.BytesIO(content))
+        pages_text = []
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            pages_text.append(text.strip())
+        spec_text = "\n\n".join(t for t in pages_text if t)
+    except Exception as e:
+        raise AppError("bad_request", f"Не удалось распарсить PDF: {e}", 400)
+
+    if not spec_text.strip():
+        raise AppError(
+            "bad_request",
+            "PDF не содержит извлекаемого текста (возможно, сканы без OCR)",
+            400,
+        )
+
+    return {"spec_text": spec_text, "pages": len(reader.pages), "filename": file.filename}
+
+
 @router.post("/applications/generate")
 async def generate_cv(
     body: GenerateIn, session: AsyncSession = Depends(get_session)
@@ -146,7 +188,8 @@ async def generate_cv(
     if not master:
         raise AppError("not_found", "Мастер-CV не найден", 404)
     prompt = await build_generate_prompt(
-        session, master.full_markdown, body.vacancy_text, body.selected_projects, body.kind
+        session, master.full_markdown, body.vacancy_text, body.selected_projects,
+        body.kind, body.spec_text,
     )
     chunks: list[str] = []
     async for token in stream_chat(
@@ -185,6 +228,7 @@ async def list_applications(
                 deadline=a.deadline,
                 expected_term=a.expected_term,
                 rating=a.rating,
+                spec_text=a.spec_text,
                 created_at=a.created_at,
                 published_at=a.published_at,
             )
@@ -250,6 +294,7 @@ async def create_application(
         deadline=body.deadline,
         expected_term=body.expected_term,
         rating=body.rating,
+        spec_text=body.spec_text,
         published_at=(
             datetime.now(timezone.utc) if body.status == "active" else None
         ),
@@ -341,6 +386,8 @@ async def update_application(
         a.expected_term = body.expected_term
     if body.rating is not None:
         a.rating = body.rating
+    if body.spec_text is not None:
+        a.spec_text = body.spec_text
     await session.commit()
     return {"id": str(a.id), "status": a.status.value}
 

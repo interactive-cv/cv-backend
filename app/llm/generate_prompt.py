@@ -58,12 +58,17 @@ async def build_generate_prompt(
     vacancy_text: str,
     selected_projects: list[str],
     kind: str = "vacancy",
+    spec_text: str | None = None,
 ) -> str:
     """Собирает промпт для генерации CV и cover letter.
 
     Шаблон берётся из БД. Для фриланс-заказов (kind=freelance) — отдельный
     ключ prompt_generate_freelance, для вакансий — prompt_generate.
     Fallback на кодовые константы GENERATE_PROMPT_TEMPLATE / DEFAULT_FREELANCE.
+
+    spec_text — ТЗ заказа (извлечённое из PDF или вставленное).
+    Если есть, подставляется в плейсхолдер {spec_text} промпта.
+    Если нет — плейсхолдер заменяется на пустоту.
     """
     from app.services.config_text import get_config_value
 
@@ -77,11 +82,22 @@ async def build_generate_prompt(
     else:
         template = await get_config_value(session, "prompt_generate") or GENERATE_PROMPT_TEMPLATE
     projects_str = ", ".join(selected_projects) if selected_projects else "на своё усмотрение"
+    spec_section = spec_text.strip() if spec_text and spec_text.strip() else ""
+    # {spec_section} в промпте заменяется на блок ТЗ или пустоту.
+    # SPEC_SECTION_TEMPLATE содержит {spec_text} — двойной format не сработает
+    # ({{spec_text}} в шаблоне нужно обработать отдельно), поэтому заменяем вручную.
+    from app.seed_defaults import SPEC_SECTION_TEMPLATE
+
+    spec_block = ""
+    if spec_section:
+        spec_block = SPEC_SECTION_TEMPLATE.replace("{spec_text}", spec_section)
     return template.format(
         cv_markdown=cv_markdown,
         vacancy_text=vacancy_text,
         selected_projects=projects_str,
         cv_link=CV_LINK_PLACEHOLDER,
+        spec_text=spec_section,
+        spec_section=spec_block,
     )
 
 

@@ -13,6 +13,7 @@ class GenerateIn(BaseModel):
     vacancy_text: str
     selected_projects: list[str] = []
     kind: Literal["vacancy", "freelance"] = "vacancy"
+    spec_text: str | None = None
 
 
 class GenerateOut(BaseModel):
@@ -40,6 +41,7 @@ class ApplicationCreateIn(BaseModel):
     deadline: datetime | None = None
     expected_term: str | None = None
     rating: int | None = None
+    spec_text: str | None = None
 
 
 class ApplicationUpdateIn(BaseModel):
@@ -56,6 +58,7 @@ class ApplicationUpdateIn(BaseModel):
     deadline: datetime | None = None
     expected_term: str | None = None
     rating: int | None = None
+    spec_text: str | None = None
 
 
 class ApplicationOut(BaseModel):
@@ -87,4 +90,5 @@ class ApplicationDetailOut(ApplicationOut):
     vacancy_text: str
     cv_markdown: str = ""
     cover_letter: str = ""
+    spec_text: str | None = None
     last_click_at: datetime | None = None

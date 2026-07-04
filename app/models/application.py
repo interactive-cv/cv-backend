@@ -72,6 +72,9 @@ class Application(Base):
     expected_term: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Внутренний рейтинг (1-5 звёзд). Для всех типов.
     rating: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # ТЗ заказа (извлечённый текст из PDF или вставленный вручную).
+    # Идёт в промпт генерации если заполнено, повышая релевантность отклика.
+    spec_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     published_at: Mapped[Optional[datetime]] = mapped_column(
