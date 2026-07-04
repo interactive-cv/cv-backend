@@ -23,6 +23,7 @@ from app.models import (
     ConfigText,
     CVVariant,
     CVVariantStatus,
+    Interview,
     LinkHit,
     MasterCV,
     ShortLink,
@@ -401,6 +402,75 @@ async def archive_application(
             v.status = CVVariantStatus.archived
     await session.commit()
     return {"id": str(a.id), "status": "archived"}
+
+
+@router.delete("/applications/{app_id}")
+async def delete_application(
+    app_id: str, session: AsyncSession = Depends(get_session)
+) -> dict:
+    """Полное удаление отклика со всеми артефактами.
+
+    Каскадное удаление в правильном порядке (зависимые → главная):
+    1. link_hit (клики по короткой ссылке)
+    2. interview (собеседования)
+    3. short_link (короткая ссылка, если есть)
+    4. cv_variant (вариант CV, если есть и не используется другими откликами)
+    5. application (сама запись)
+
+    Необратимо — подтверждение на фронтенде.
+    """
+    a = (
+        await session.execute(
+            select(Application).where(Application.id == uuid.UUID(app_id))
+        )
+    ).scalar_one_or_none()
+    if not a:
+        raise AppError("not_found", "Отклик не найден", 404)
+
+    # 1. Удаляем клики по короткой ссылке
+    if a.short_link_code:
+        hits = (
+            await session.execute(
+                select(LinkHit).where(LinkHit.short_link_code == a.short_link_code)
+            )
+        ).scalars().all()
+        for h in hits:
+            await session.delete(h)
+
+    # 2. Удаляем собеседования
+    interviews = (
+        await session.execute(
+            select(Interview).where(Interview.application_id == a.id)
+        )
+    ).scalars().all()
+    for iv in interviews:
+        await session.delete(iv)
+
+    # 3. Удаляем короткую ссылку (если есть)
+    if a.short_link_code:
+        link = await session.get(ShortLink, a.short_link_code)
+        if link:
+            await session.delete(link)
+
+    # 4. Удаляем cv_variant (если есть и не используется другими откликами)
+    if a.cv_variant_id:
+        other_apps = (
+            await session.execute(
+                select(Application).where(
+                    Application.cv_variant_id == a.cv_variant_id,
+                    Application.id != a.id,
+                )
+            )
+        ).scalars().all()
+        if not other_apps:
+            v = await session.get(CVVariant, a.cv_variant_id)
+            if v:
+                await session.delete(v)
+
+    # 5. Удаляем сам отклик
+    await session.delete(a)
+    await session.commit()
+    return {"id": str(a.id), "deleted": True}
 
 
 # ===== Settings: редактируемые тексты (мастер-CV, README, промпты) =====

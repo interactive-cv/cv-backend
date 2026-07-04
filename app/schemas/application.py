@@ -8,7 +8,7 @@ from pydantic import BaseModel
 class GenerateIn(BaseModel):
     """Вход AI-генерации CV из вакансии или фриланс-заказа."""
 
-    company: str
+    company: str | None = None
     role: str
     vacancy_text: str
     selected_projects: list[str] = []
@@ -25,7 +25,7 @@ class GenerateOut(BaseModel):
 class ApplicationCreateIn(BaseModel):
     """Создание отклика (после генерации/редактирования)."""
 
-    company: str
+    company: str | None = None
     role: str
     vacancy_text: str
     cover_letter: str = ""
@@ -62,7 +62,7 @@ class ApplicationOut(BaseModel):
     """Список откликов. vacancy_text НЕ включаем — приватный."""
 
     id: uuid.UUID
-    company: str
+    company: str | None
     role: str
     slug: str
     status: str

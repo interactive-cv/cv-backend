@@ -38,7 +38,7 @@ class Application(Base):
     __tablename__ = "application"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    company: Mapped[str] = mapped_column(Text)
+    company: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     role: Mapped[str] = mapped_column(Text)
     vacancy_text: Mapped[str] = mapped_column(Text)
     cover_letter: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
