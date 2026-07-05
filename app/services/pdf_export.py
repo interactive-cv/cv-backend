@@ -110,13 +110,24 @@ def generate_cv_pdf(markdown_text: str, title: str = "CV") -> bytes:
     pdf.add_font("CVFont", "BI", bold_path)
     pdf.set_font("CVFont", size=10)
 
-    # fpdf2 write_html рендерит HTML с базовым форматированием.
-    # CSS через <style> не парсится fpdf2 (попадает в текст) — используем
-    # дефолтные стили + атрибуты напрямую в тегах.
-    # Добавляем разделители между секциями через <br> для отступов.
+    # fpdf2 write_html: дефолтные стили красят заголовки/маркеры в бордовый.
+    # Переопределяем: заголовки чёрные + жирные, маркеры тёмно-серые.
+    from fpdf.html import DEFAULT_TAG_STYLES, TextEmphasis
+
+    custom_styles = dict(DEFAULT_TAG_STYLES)
+    for h in ("h1", "h2", "h3", "h4", "h5", "h6"):
+        custom_styles[h] = DEFAULT_TAG_STYLES[h].replace(
+            color=(0, 0, 0),
+            emphasis=TextEmphasis.B,
+        )
+
     full_html = f"<html><body>{html_body}</body></html>"
 
-    pdf.write_html(full_html)
+    pdf.write_html(
+        full_html,
+        tag_styles=custom_styles,
+        li_prefix_color=(80, 80, 80),  # тёмно-серые маркеры (не бордовые)
+    )
 
     output = pdf.output()
     return bytes(output)
