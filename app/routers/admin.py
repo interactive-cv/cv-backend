@@ -558,11 +558,27 @@ async def download_cv_pdf(
     except RuntimeError as e:
         raise AppError("server_error", str(e), 500)
 
-    filename = f"CV_{(a.company or a.role)}_{a.role}.pdf".replace(" ", "_").replace("/", "-")
+    # filename — ASCII only (HTTP-заголовки в latin-1). Кириллицу транслитерируем.
+    import unicodedata
+
+    def _ascii(s: str) -> str:
+        """Транслитерация кириллицы/юникода в ASCII для HTTP-заголовка."""
+        return (
+            unicodedata.normalize("NFKD", s)
+            .encode("ascii", "ignore")
+            .decode("ascii")
+            .replace(" ", "_")
+            .replace("/", "-")
+            or "CV"
+        )
+
+    filename = f"CV_{_ascii(a.company or a.role)}_{_ascii(a.role)}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
     )
 
 
