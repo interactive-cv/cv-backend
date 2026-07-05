@@ -724,13 +724,25 @@ async def list_chats(
     """Список HR-чатов (сессий) с краткой инфой.
 
     Имя: visitor_name если HR назвался, иначе сгенерированное (прилагательное+животное).
-    Админ: если session_id совпадает с cookie cv_session_id — помечается is_admin.
+    Админ: если session_id совпадает с cookie cv_session_id, ИЛИ если
+    ip_hash сессии совпадает с ip_hash админ-сессии — помечается is_admin.
     """
     from sqlalchemy import func
 
     from app.services.visitor_names import generate_visitor_name
 
     admin_session_id = request.cookies.get("cv_session_id")
+
+    # Находим ip_hash админ-сессии (для корреляции с другими сессиями того же IP).
+    admin_ip_hash = None
+    if admin_session_id:
+        admin_session = (
+            await session.execute(
+                select(ChatSession).where(ChatSession.id == admin_session_id)
+            )
+        ).scalar_one_or_none()
+        if admin_session:
+            admin_ip_hash = admin_session.ip_hash
 
     sessions = (
         await session.execute(
@@ -748,10 +760,13 @@ async def list_chats(
     result = []
     for s, count in sessions:
         sid_str = str(s.id)
-        is_admin = admin_session_id == sid_str
+        # Админ: совпадение по session_id ИЛИ по ip_hash
+        is_admin = admin_session_id == sid_str or (
+            admin_ip_hash and s.ip_hash == admin_ip_hash
+        )
         # Имя: visitor_name если есть, иначе сгенерированное, для админа — «Валерий»
         if is_admin:
-            display_name = settings.site_url and "Валерий"  # из OWNER_NAME (simplified)
+            display_name = "Валерий"
         elif s.visitor_name:
             display_name = s.visitor_name
         else:
@@ -833,6 +848,17 @@ async def get_visitors(
 
     admin_session_id = request.cookies.get("cv_session_id")
 
+    # Находим ip_hash админ-сессии (для корреляции с другими сессиями того же IP).
+    admin_ip_hash = None
+    if admin_session_id:
+        admin_session = (
+            await session.execute(
+                select(ChatSession).where(ChatSession.id == admin_session_id)
+            )
+        ).scalar_one_or_none()
+        if admin_session:
+            admin_ip_hash = admin_session.ip_hash
+
     # Группируем LinkHit по session_id
     rows = (
         await session.execute(
@@ -851,7 +877,6 @@ async def get_visitors(
     result = []
     for sid, views, last_visit in rows:
         sid_str = str(sid)
-        is_admin = admin_session_id == sid_str
 
         # Загружаем ChatSession для имени
         chat_session = (
@@ -859,6 +884,11 @@ async def get_visitors(
                 select(ChatSession).where(ChatSession.id == sid)
             )
         ).scalar_one_or_none()
+
+        # Админ: совпадение по session_id ИЛИ по ip_hash
+        is_admin = admin_session_id == sid_str or (
+            admin_ip_hash and chat_session and chat_session.ip_hash == admin_ip_hash
+        )
 
         if is_admin:
             display_name = "Валерий"
