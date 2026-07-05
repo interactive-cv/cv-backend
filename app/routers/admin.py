@@ -411,23 +411,43 @@ async def publish_application(
     ).scalar_one_or_none()
     if not a:
         raise AppError("not_found", "Отклик не найден", 404)
-    # генерируем короткую ссылку
-    code = _generate_code()
+    # Если уже есть короткая ссылка — переиспользуем её (продляем срок,
+    # активируем CV-вариант). Это позволяет републиковать по той же ссылке,
+    # которая уже у заказчика. Новая ссылка генерируется только если её не было.
+    if a.short_link_code:
+        existing_link = await session.get(ShortLink, a.short_link_code)
+        if existing_link:
+            # Продлеваем срок действия на 30 дней от сейчас
+            existing_link.expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+            code = existing_link.code
+        else:
+            # Код есть, но запись потеряна — генерируем новую
+            code = _generate_code()
+            if a.cv_variant_id:
+                link = ShortLink(
+                    code=code,
+                    cv_variant_id=a.cv_variant_id,
+                    expires_at=datetime.now(timezone.utc) + timedelta(days=30),
+                )
+                session.add(link)
+                await session.flush()
+            a.short_link_code = code
+    else:
+        # Генерируем новую короткую ссылку
+        code = _generate_code()
+        if a.cv_variant_id:
+            link = ShortLink(
+                code=code,
+                cv_variant_id=a.cv_variant_id,
+                expires_at=datetime.now(timezone.utc) + timedelta(days=30),
+            )
+            session.add(link)
+            await session.flush()
+            a.short_link_code = code
     if a.cv_variant_id:
         v = await session.get(CVVariant, a.cv_variant_id)
         if v:
             v.status = CVVariantStatus.active
-        link = ShortLink(
-            code=code,
-            cv_variant_id=a.cv_variant_id,
-            expires_at=datetime.now(timezone.utc) + timedelta(days=30),
-        )
-        session.add(link)
-        # flush() сохраняет ShortLink в БД ДО того, как мы назначим FK
-        # на application.short_link_code. Иначе PostgreSQL нарушает FK-ограничение:
-        # application ссылается на ещё не существующую запись short_link.
-        await session.flush()
-        a.short_link_code = code
     a.status = ApplicationStatus.active
     a.published_at = datetime.now(timezone.utc)
     # заменяем плейсхолдер {CV_LINK} в cover letter на реальную короткую ссылку.
