@@ -20,4 +20,6 @@ class Project(Base):
     long_desc: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     stack: Mapped[list[str]] = mapped_column(JSONB, default=list)
     metrics: Mapped[dict] = mapped_column(JSONB, default=dict)
+    # Ссылки на проект: [{label: "GitHub", url: "..."}, {label: "Демо", url: "..."}]
+    links: Mapped[list[dict]] = mapped_column(JSONB, default=list)
     order_idx: Mapped[int] = mapped_column(Integer, default=0)
