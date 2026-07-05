@@ -21,7 +21,7 @@ async def list_projects(session: AsyncSession = Depends(get_session)) -> list[Pr
             short_desc=p.short_desc,
             stack=p.stack,
             metrics=p.metrics,
-            links=[ProjectLinkOut(**l) for l in (p.links or [])],
+            links=[ProjectLinkOut(**link) for link in (p.links or [])],
             order_idx=p.order_idx,
         )
         for p in rows
