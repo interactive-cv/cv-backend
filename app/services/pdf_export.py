@@ -1,11 +1,12 @@
 """Генерация PDF из markdown CV для скачивания (отклик на FL.ru и др.).
 
-Конвейер: markdown → HTML (библиотека markdown) → PDF (fpdf2 write_html).
-Шрифт: Unicode TTF с поддержкой кириллицы (DejaVu в Docker, Arial на macOS).
+Подход: markdown → построчный парсинг → fpdf2 multi_cell(markdown=True).
+multi_cell(markdown=True) рендерит **bold** inline, без проблем write_html
+(бордовые заголовки, уехавшие маркеры, пустые страницы).
 """
+import re
 from pathlib import Path
 
-import markdown as md_lib
 from fpdf import FPDF
 
 # Пути поиска шрифта (по приоритету).
@@ -49,31 +50,9 @@ def _get_fonts() -> tuple[str | None, str | None]:
     return None, None
 
 
-def _preprocess_tables(md: str) -> str:
-    """Подготавливает markdown для корректной конвертации таблиц в HTML.
-
-    Две проблемы:
-    1. fpdf2 write_html не поддерживает вложенные теги (<strong>) внутри <td>.
-       → Убираем ** и __ из строк-таблиц.
-    2. Markdown-парсер «прилипляет» следующий контент к таблице если нет
-       пустой строки-разделителя → контакты попадают в ячейки таблицы.
-       → Добавляем пустую строку после каждой таблицы.
-    """
-    lines = md.split("\n")
-    processed = []
-    in_table = False
-    for i, line in enumerate(lines):
-        is_table_row = line.strip().startswith("|")
-        if is_table_row:
-            # Убираем ** и __ в ячейках таблиц
-            line = line.replace("**", "").replace("__", "")
-            in_table = True
-        elif in_table and line.strip():
-            # Первая непустая строка после таблицы — добавляем разделитель
-            processed.append("")
-            in_table = False
-        processed.append(line)
-    return "\n".join(processed)
+def _strip_links(text: str) -> str:
+    """[label](url) → label. multi_cell(markdown=True) не парсит ссылки."""
+    return re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1", text)
 
 
 def generate_cv_pdf(markdown_text: str, title: str = "CV") -> bytes:
@@ -89,45 +68,68 @@ def generate_cv_pdf(markdown_text: str, title: str = "CV") -> bytes:
             "(apt) или положите TTF в app/assets/fonts/."
         )
 
-    # Предобработка: убираем ** из таблиц (fpdf2 write_html limitation)
-    md_clean = _preprocess_tables(markdown_text)
-
-    # markdown → HTML с поддержкой таблиц
-    html_body = md_lib.markdown(
-        md_clean,
-        extensions=["tables", "sane_lists"],
-    )
-
     pdf = FPDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_margins(left=15, top=15, right=15)
     pdf.add_page()
 
-    # Регистрируем Unicode-шрифты
-    pdf.add_font("CVFont", "", reg_path)
-    pdf.add_font("CVFont", "B", bold_path)
-    pdf.add_font("CVFont", "I", reg_path)  # italic = regular (нет отдельного italic файла)
-    pdf.add_font("CVFont", "BI", bold_path)
-    pdf.set_font("CVFont", size=10)
+    pdf.add_font("CV", "", reg_path)
+    pdf.add_font("CV", "B", bold_path)
+    pdf.set_font("CV", size=10)
 
-    # fpdf2 write_html: дефолтные стили красят заголовки/маркеры в бордовый.
-    # Переопределяем: заголовки чёрные + жирные, маркеры тёмно-серые.
-    from fpdf.html import DEFAULT_TAG_STYLES, TextEmphasis
+    # Межстрочный интервал: 6mm — комфортное чтение (не плотно, не разреженно).
+    LH = 6.0
 
-    custom_styles = dict(DEFAULT_TAG_STYLES)
-    for h in ("h1", "h2", "h3", "h4", "h5", "h6"):
-        custom_styles[h] = DEFAULT_TAG_STYLES[h].replace(
-            color=(0, 0, 0),
-            emphasis=TextEmphasis.B,
-        )
+    for raw in markdown_text.split("\n"):
+        line = raw.rstrip()
 
-    full_html = f"<html><body>{html_body}</body></html>"
+        # Пустая строка — небольшой отступ
+        if not line.strip():
+            pdf.ln(2)
+            continue
 
-    pdf.write_html(
-        full_html,
-        tag_styles=custom_styles,
-        li_prefix_color=(80, 80, 80),  # тёмно-серые маркеры (не бордовые)
-    )
+        # Заголовки
+        if line.startswith("### "):
+            pdf.set_font("CV", "B", 11)
+            pdf.multi_cell(0, LH, _strip_links(line[4:].strip()), markdown=True,
+                           new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(1)
+        elif line.startswith("## "):
+            pdf.ln(2)
+            pdf.set_font("CV", "B", 13)
+            pdf.multi_cell(0, LH, _strip_links(line[3:].strip()), markdown=True,
+                           new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(1)
+        elif line.startswith("# "):
+            pdf.set_font("CV", "B", 16)
+            pdf.multi_cell(0, LH + 2, _strip_links(line[2:].strip()), markdown=True,
+                           new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(3)
+        elif line.startswith("- ") or line.startswith("* "):
+            # Список: маркер • + текст. **bold** рендерится через markdown=True.
+            text = _strip_links(line[2:].strip())
+            pdf.set_font("CV", "", 10)
+            pdf.multi_cell(0, LH, f"• {text}", markdown=True,
+                           new_x="LMARGIN", new_y="NEXT")
+        elif line.startswith("|"):
+            # Разделитель таблицы — пропускаем
+            if re.match(r"^\|[-:| ]+\|$", line):
+                continue
+            # Строка таблицы: убираем ** (multi_cell не парсит внутри ячеек),
+            # выводим ячейки через разделитель.
+            clean = line.replace("**", "")
+            cells = [c.strip() for c in clean.strip("|").split("|")]
+            text = "   |   ".join(c for c in cells if c)
+            pdf.set_font("CV", "", 9)
+            pdf.multi_cell(0, LH - 0.5, text, new_x="LMARGIN", new_y="NEXT")
+        elif line == "---":
+            pdf.ln(3)
+        else:
+            # Обычный абзац
+            text = _strip_links(line)
+            pdf.set_font("CV", "", 10)
+            pdf.multi_cell(0, LH, text, markdown=True,
+                           new_x="LMARGIN", new_y="NEXT")
 
     output = pdf.output()
     return bytes(output)
