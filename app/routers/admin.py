@@ -3,7 +3,7 @@ import string
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -693,10 +693,19 @@ async def apply_master_cv(
 
 @router.get("/chats")
 async def list_chats(
+    request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
-    """Список HR-чатов (сессий) с краткой инфой."""
+    """Список HR-чатов (сессий) с краткой инфой.
+
+    Имя: visitor_name если HR назвался, иначе сгенерированное (прилагательное+животное).
+    Админ: если session_id совпадает с cookie cv_session_id — помечается is_admin.
+    """
     from sqlalchemy import func
+
+    from app.services.visitor_names import generate_visitor_name
+
+    admin_session_id = request.cookies.get("cv_session_id")
 
     sessions = (
         await session.execute(
@@ -711,17 +720,29 @@ async def list_chats(
         )
     ).all()
 
-    return [
-        {
-            "id": str(s.id),
+    result = []
+    for s, count in sessions:
+        sid_str = str(s.id)
+        is_admin = admin_session_id == sid_str
+        # Имя: visitor_name если есть, иначе сгенерированное, для админа — «Валерий»
+        if is_admin:
+            display_name = settings.site_url and "Валерий"  # из OWNER_NAME (simplified)
+        elif s.visitor_name:
+            display_name = s.visitor_name
+        else:
+            display_name = generate_visitor_name(sid_str)
+
+        result.append({
+            "id": sid_str,
+            "display_name": display_name,
             "visitor_name": s.visitor_name,
+            "is_admin": is_admin,
             "short_link_code": s.short_link_code,
             "message_count": count,
             "created_at": s.created_at.isoformat(),
             "last_active_at": s.last_active_at.isoformat(),
-        }
-        for s, count in sessions
-    ]
+        })
+    return result
 
 
 @router.get("/chats/{chat_session_id}")
