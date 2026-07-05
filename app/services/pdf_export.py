@@ -1,16 +1,14 @@
 """Генерация PDF из markdown CV для скачивания (отклик на FL.ru и др.).
 
-Использует fpdf2 (чистый Python, без системных зависимостей) + Unicode TTF-шрифт.
-Шрифт ищется в нескольких местах (dev: app/assets/fonts/, prod: apt fonts-dejavu-core).
+Конвейер: markdown → HTML (библиотека markdown) → PDF (fpdf2 write_html).
+Шрифт: Unicode TTF с поддержкой кириллицы (DejaVu в Docker, Arial на macOS).
 """
-import re
 from pathlib import Path
 
+import markdown as md_lib
 from fpdf import FPDF
 
 # Пути поиска шрифта (по приоритету).
-# В dev: локальный TTF в app/assets/fonts/.
-# В Docker (prod): apt-get install fonts-dejavu-core → /usr/share/fonts/truetype/dejavu/.
 _FONT_PATHS = [
     Path(__file__).resolve().parent.parent / "assets" / "fonts",
     Path("/usr/share/fonts/truetype/dejavu"),
@@ -30,7 +28,6 @@ def _find_font(regular: str, bold: str) -> tuple[str | None, str | None]:
             bold_path = str(d / bold)
         if reg and bold_path:
             break
-    # Fallback: если нет bold — используем regular.
     if reg and not bold_path:
         bold_path = reg
     return reg, bold_path
@@ -38,7 +35,6 @@ def _find_font(regular: str, bold: str) -> tuple[str | None, str | None]:
 
 def _get_fonts() -> tuple[str | None, str | None]:
     """Возвращает пути к regular и bold TTF-шрифтам с поддержкой Unicode."""
-    # Приоритет: DejaVu (открытый, в Docker), Arial (macOS dev), Tahoma, Verdana.
     candidates = [
         ("DejaVuSans.ttf", "DejaVuSans-Bold.ttf"),
         ("Arial.ttf", "Arial-Bold.ttf"),
@@ -53,45 +49,34 @@ def _get_fonts() -> tuple[str | None, str | None]:
     return None, None
 
 
-def _markdown_to_pdf_lines(md: str) -> list[tuple[str, str]]:
-    """Упрощённый парсер markdown → [(style, text), ...].
+def _preprocess_tables(md: str) -> str:
+    """Подготавливает markdown для корректной конвертации таблиц в HTML.
 
-    Поддерживает: # h1, ## h2, ### h3, обычные абзацы, - списки, таблицы.
-    style: 'h1' | 'h2' | 'h3' | 'bullet' | 'text' | 'separator'
+    Две проблемы:
+    1. fpdf2 write_html не поддерживает вложенные теги (<strong>) внутри <td>.
+       → Убираем ** и __ из строк-таблиц.
+    2. Markdown-парсер «прилипляет» следующий контент к таблице если нет
+       пустой строки-разделителя → контакты попадают в ячейки таблицы.
+       → Добавляем пустую строку после каждой таблицы.
     """
-    lines = []
-    for raw in md.split("\n"):
-        line = raw.rstrip()
-        if not line.strip():
-            lines.append(("text", ""))
-            continue
-        # Заголовки
-        if line.startswith("### "):
-            lines.append(("h3", line[4:].strip()))
-        elif line.startswith("## "):
-            lines.append(("h2", line[3:].strip()))
-        elif line.startswith("# "):
-            lines.append(("h1", line[2:].strip()))
-        elif line.startswith("- ") or line.startswith("* "):
-            lines.append(("bullet", line[2:].strip()))
-        elif line.startswith("|") and "---" not in line:
-            # Упрощённая таблица — выводим как текст
-            cells = [c.strip() for c in line.strip("|").split("|")]
-            text = "  ·  ".join(c for c in cells if c)
-            lines.append(("text", text))
-        elif re.match(r"^\|[-:| ]+\|$", line):
-            lines.append(("separator", ""))  # разделитель таблицы пропускаем
-        elif line == "---":
-            lines.append(("separator", ""))
-        else:
-            # Убираем markdown-разметку из обычного текста
-            clean = re.sub(r"\*\*(.+?)\*\*", r"\1", line)
-            clean = re.sub(r"\[(.+?)\]\((.+?)\)", r"\1 (\2)", clean)
-            lines.append(("text", clean))
-    return lines
+    lines = md.split("\n")
+    processed = []
+    in_table = False
+    for i, line in enumerate(lines):
+        is_table_row = line.strip().startswith("|")
+        if is_table_row:
+            # Убираем ** и __ в ячейках таблиц
+            line = line.replace("**", "").replace("__", "")
+            in_table = True
+        elif in_table and line.strip():
+            # Первая непустая строка после таблицы — добавляем разделитель
+            processed.append("")
+            in_table = False
+        processed.append(line)
+    return "\n".join(processed)
 
 
-def generate_cv_pdf(markdown: str, title: str = "CV") -> bytes:
+def generate_cv_pdf(markdown_text: str, title: str = "CV") -> bytes:
     """Генерирует PDF из markdown CV. Возвращает bytes.
 
     Кириллица поддерживается через Unicode TTF-шрифт.
@@ -104,38 +89,34 @@ def generate_cv_pdf(markdown: str, title: str = "CV") -> bytes:
             "(apt) или положите TTF в app/assets/fonts/."
         )
 
+    # Предобработка: убираем ** из таблиц (fpdf2 write_html limitation)
+    md_clean = _preprocess_tables(markdown_text)
+
+    # markdown → HTML с поддержкой таблиц
+    html_body = md_lib.markdown(
+        md_clean,
+        extensions=["tables", "sane_lists"],
+    )
+
     pdf = FPDF(orientation="P", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_margins(left=15, top=15, right=15)
     pdf.add_page()
 
-    # Регистрируем шрифты
+    # Регистрируем Unicode-шрифты
     pdf.add_font("CVFont", "", reg_path)
     pdf.add_font("CVFont", "B", bold_path)
+    pdf.add_font("CVFont", "I", reg_path)  # italic = regular (нет отдельного italic файла)
+    pdf.add_font("CVFont", "BI", bold_path)
     pdf.set_font("CVFont", size=10)
 
-    lines = _markdown_to_pdf_lines(markdown)
-    for style, text in lines:
-        if style == "h1":
-            pdf.set_font("CVFont", "B", 16)
-            pdf.multi_cell(0, 8, text, new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(2)
-        elif style == "h2":
-            pdf.ln(2)
-            pdf.set_font("CVFont", "B", 13)
-            pdf.multi_cell(0, 6, text, new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(1)
-        elif style == "h3":
-            pdf.set_font("CVFont", "B", 11)
-            pdf.multi_cell(0, 5, text, new_x="LMARGIN", new_y="NEXT")
-        elif style == "bullet":
-            pdf.set_font("CVFont", "", 10)
-            pdf.multi_cell(0, 5, f"• {text}", new_x="LMARGIN", new_y="NEXT")
-        elif style == "separator":
-            pdf.ln(2)
-        elif text:
-            pdf.set_font("CVFont", "", 10)
-            pdf.multi_cell(0, 5, text, new_x="LMARGIN", new_y="NEXT")
+    # fpdf2 write_html рендерит HTML с базовым форматированием.
+    # CSS через <style> не парсится fpdf2 (попадает в текст) — используем
+    # дефолтные стили + атрибуты напрямую в тегах.
+    # Добавляем разделители между секциями через <br> для отступов.
+    full_html = f"<html><body>{html_body}</body></html>"
 
-    # Возвращаем как bytes
+    pdf.write_html(full_html)
+
     output = pdf.output()
     return bytes(output)
