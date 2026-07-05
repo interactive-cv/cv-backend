@@ -781,3 +781,83 @@ async def get_chat(
             for m in msgs
         ],
     }
+
+
+@router.get("/applications/{app_id}/visitors")
+async def get_visitors(
+    app_id: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """Уникальные посетители CV-отклика: список с именами и кол-вом просмотров.
+
+    Группирует LinkHit по session_id, возвращает display_name (сгенерированное
+    или visitor_name), кол-во просмотров, время последнего визита, был ли чат.
+    """
+    from sqlalchemy import func
+
+    from app.services.visitor_names import generate_visitor_name
+
+    a = (
+        await session.execute(
+            select(Application).where(Application.id == uuid.UUID(app_id))
+        )
+    ).scalar_one_or_none()
+    if not a or not a.short_link_code:
+        return []
+
+    admin_session_id = request.cookies.get("cv_session_id")
+
+    # Группируем LinkHit по session_id
+    rows = (
+        await session.execute(
+            select(
+                LinkHit.session_id,
+                func.count(LinkHit.id).label("views"),
+                func.max(LinkHit.ts).label("last_visit"),
+            )
+            .where(LinkHit.short_link_code == a.short_link_code)
+            .where(LinkHit.session_id.isnot(None))
+            .group_by(LinkHit.session_id)
+            .order_by(func.max(LinkHit.ts).desc())
+        )
+    ).all()
+
+    result = []
+    for sid, views, last_visit in rows:
+        sid_str = str(sid)
+        is_admin = admin_session_id == sid_str
+
+        # Загружаем ChatSession для имени
+        chat_session = (
+            await session.execute(
+                select(ChatSession).where(ChatSession.id == sid)
+            )
+        ).scalar_one_or_none()
+
+        if is_admin:
+            display_name = "Валерий"
+        elif chat_session and chat_session.visitor_name:
+            display_name = chat_session.visitor_name
+        else:
+            display_name = generate_visitor_name(sid_str)
+
+        # Был ли чат?
+        chat_count = (
+            await session.execute(
+                select(func.count(ChatMessage.id)).where(
+                    ChatMessage.session_id == sid
+                )
+            )
+        ).scalar()
+
+        result.append({
+            "session_id": sid_str,
+            "display_name": display_name,
+            "is_admin": is_admin,
+            "views": views,
+            "last_visit": last_visit.isoformat() if last_visit else None,
+            "has_chat": (chat_count or 0) > 0,
+        })
+
+    return result

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_session
@@ -6,6 +7,7 @@ from app.errors import AppError
 from app.ratelimit import check_resolve_rate
 from app.request_utils import client_ip
 from app.schemas.link import LinkResolveOut
+from app.services.chat_session import get_or_create_session
 from app.services.links import resolve_link
 
 router = APIRouter()
@@ -14,12 +16,34 @@ router = APIRouter()
 @router.get("/api/links/resolve", response_model=LinkResolveOut)
 async def resolve(
     code: str, request: Request, session: AsyncSession = Depends(get_session)
-) -> LinkResolveOut:
+) -> JSONResponse:
     ip = client_ip(request)
-    # Защита от брутфорса коротких кодов (§10): rate-limit ПЕРЕД обращением к БД.
     if not check_resolve_rate(ip):
         raise AppError("rate_limited", "Слишком много запросов, подождите минуту", 429)
     ua = request.headers.get("user-agent", "")
     referrer = request.headers.get("referer", "")
-    slug, expires_at = await resolve_link(code, ip, ua, referrer, session)
-    return LinkResolveOut(cv_variant_slug=slug, expires_at=expires_at)
+
+    # Создаём или находим сессию посетителя (единый профиль: клики + чат).
+    cookie_sid = request.cookies.get("cv_session_id")
+    chat_session = await get_or_create_session(
+        session, cookie_sid, ip, short_link_code=code
+    )
+    await session.commit()
+
+    slug, expires_at = await resolve_link(
+        code, ip, ua, referrer, session, chat_session_id=chat_session.id
+    )
+
+    # Возвращаем JSON + ставим cookie session_id (если новой сессии).
+    response = JSONResponse(
+        content={"cv_variant_slug": slug, "expires_at": expires_at.isoformat()},
+    )
+    if not cookie_sid or cookie_sid != str(chat_session.id):
+        response.set_cookie(
+            key="cv_session_id",
+            value=str(chat_session.id),
+            httponly=True,
+            max_age=86400,
+            samesite="lax",
+        )
+    return response

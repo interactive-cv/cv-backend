@@ -25,5 +25,10 @@ class LinkHit(Base):
     referrer: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ua: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ip_hash: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # session_id — единый профиль посетителя (связь с chat_session).
+    # Nullable: старые клики (до фичи) не имеют session_id.
+    session_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid, ForeignKey("chat_session.id"), nullable=True
+    )
 
     link: Mapped["ShortLink"] = relationship(back_populates="hits")
