@@ -374,6 +374,11 @@ async def update_application(
         a.status = ApplicationStatus(body.status)
     if body.kind is not None:
         a.kind = ApplicationKind(body.kind)
+    # company и role — редактируемые (имя заказчика/название могут стать известны позже)
+    if body.company is not None:
+        a.company = body.company
+    if body.role is not None:
+        a.role = body.role
     # Новые поля отклика (freelance + общие)
     if body.source_url is not None:
         a.source_url = body.source_url

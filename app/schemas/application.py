@@ -47,6 +47,8 @@ class ApplicationCreateIn(BaseModel):
 class ApplicationUpdateIn(BaseModel):
     """Редактирование отклика."""
 
+    company: str | None = None
+    role: str | None = None
     cover_letter: str | None = None
     cv_markdown: str | None = None
     status: Literal["draft", "active", "archived"] | None = None
