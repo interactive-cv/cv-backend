@@ -6,5 +6,6 @@ from app.models.project import Project
 from app.models.application import Application, ApplicationKind, ApplicationStatus
 from app.models.interview import Interview
 from app.models.config_text import ConfigText, CONFIG_KEYS
+from app.models.chat_message import ChatSession, ChatMessage
 
-__all__ = ["MasterCV", "CVVariant", "CVVariantStatus", "ShortLink", "LinkHit", "Project", "Application", "ApplicationKind", "ApplicationStatus", "Interview", "ConfigText", "CONFIG_KEYS"]
+__all__ = ["MasterCV", "CVVariant", "CVVariantStatus", "ShortLink", "LinkHit", "Project", "Application", "ApplicationKind", "ApplicationStatus", "Interview", "ConfigText", "CONFIG_KEYS", "ChatSession", "ChatMessage"]

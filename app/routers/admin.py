@@ -21,6 +21,8 @@ from app.models import (
     Application,
     ApplicationKind,
     ApplicationStatus,
+    ChatMessage,
+    ChatSession,
     ConfigText,
     CVVariant,
     CVVariantStatus,
@@ -684,3 +686,77 @@ async def apply_master_cv(
     return await update_settings(
         SettingsUpdateIn(master_cv=body.markdown), session
     )
+
+
+# ===== Chats: просмотр HR-диалогов =====
+
+
+@router.get("/chats")
+async def list_chats(
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """Список HR-чатов (сессий) с краткой инфой."""
+    from sqlalchemy import func
+
+    sessions = (
+        await session.execute(
+            select(
+                ChatSession,
+                func.count(ChatMessage.id).label("msg_count"),
+            )
+            .outerjoin(ChatMessage, ChatMessage.session_id == ChatSession.id)
+            .group_by(ChatSession.id)
+            .order_by(ChatSession.last_active_at.desc())
+            .limit(100)
+        )
+    ).all()
+
+    return [
+        {
+            "id": str(s.id),
+            "visitor_name": s.visitor_name,
+            "short_link_code": s.short_link_code,
+            "message_count": count,
+            "created_at": s.created_at.isoformat(),
+            "last_active_at": s.last_active_at.isoformat(),
+        }
+        for s, count in sessions
+    ]
+
+
+@router.get("/chats/{chat_session_id}")
+async def get_chat(
+    chat_session_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Полный диалог по сессии."""
+    sid = uuid.UUID(chat_session_id)
+    chat_session = (
+        await session.execute(select(ChatSession).where(ChatSession.id == sid))
+    ).scalar_one_or_none()
+    if not chat_session:
+        raise AppError("not_found", "Чат не найден", 404)
+
+    msgs = (
+        await session.execute(
+            select(ChatMessage)
+            .where(ChatMessage.session_id == sid)
+            .order_by(ChatMessage.created_at)
+        )
+    ).scalars().all()
+
+    return {
+        "id": str(chat_session.id),
+        "visitor_name": chat_session.visitor_name,
+        "short_link_code": chat_session.short_link_code,
+        "created_at": chat_session.created_at.isoformat(),
+        "last_active_at": chat_session.last_active_at.isoformat(),
+        "messages": [
+            {
+                "role": m.role,
+                "content": m.content,
+                "created_at": m.created_at.isoformat(),
+            }
+            for m in msgs
+        ],
+    }
