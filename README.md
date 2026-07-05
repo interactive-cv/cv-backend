@@ -22,15 +22,21 @@
 | `GET /api/cv/master` | Публичные данные мастер-CV (контакты, навыки, языки) |
 | `GET /api/projects` | Список проектов для таймлайна и графа знаний |
 | `GET /api/variants/{slug}` | Вариант CV под конкретную вакансию (SSR-страница) |
-| `GET /api/links/resolve?code=` | Резолв короткой ссылки с TTL и лимитом кликов |
-| `POST /api/chat` | AI-чат (стриминг ответа, RAG по CV) |
-| `POST /admin/applications/generate` | **AI-генерация CV и cover letter из вакансии** (LLM, RAG по мастер-CV) |
-| `GET/POST/PATCH /admin/applications` | CRUD откликов: компания, роль, CV, cover letter, статус |
-| `POST /admin/applications/{id}/publish` | Публикация: создание короткой ссылки, status=active |
-| `POST /admin/applications/{id}/archive` | Архивирование отклика |
-| `POST /admin/*` | Управление вариантами CV и ссылками вручную (Bearer-токен) |
+| `GET /api/links/resolve?code=` | Резолв короткой ссылки с TTL, лимитом кликов и session_id трекингом |
+| `POST /api/chat` | AI-чат (стриминг, RAG по CV, контекст диалога, сессии) |
+| `GET /api/chat/history/{id}` | История диалога по session_id (восстановление при перезагрузке) |
+| `POST /admin/applications/generate` | **AI-генерация CV и cover letter** (LLM, RAG, тип vacancy/freelance, ТЗ из PDF) |
+| `POST /admin/applications/upload-spec` | Загрузка ТЗ в PDF → извлечение текста (pypdf) → в промпт |
+| `GET/POST/PATCH/DELETE /admin/applications` | CRUD откликов: вакансии и фриланс-заказы (бюджет, конкурс, срок, рейтинг, ссылки, ТЗ) |
+| `GET /admin/applications/{id}/pdf` | **Экспорт CV в PDF** (fpdf2, Unicode, кириллица) |
+| `GET /admin/applications/{id}/visitors` | Уникальные посетители CV (имена, кол-во просмотров, был ли чат) |
+| `POST /admin/applications/{id}/publish` | Публикация: короткая ссылка, status=active (переиспользование при републикации) |
+| `GET/PATCH /admin/settings` | **Настройки в БД**: мастер-CV, README, промпты (редактируемые через админку) |
+| `POST /admin/settings/master-cv/preview` | **AI-правка CV**: инструкция → предпросмотр → применение |
+| `GET /admin/chats` | Список HR-чатов с именами посетителей («Крепкий Кабан» и т.д.) |
+| `GET /admin/chats/{id}` | Полный диалог HR-сессии |
 
-Изящные детали реализации: атомарный инкремент счётчика кликов через `UPDATE ... WHERE hit_count < max_hits` (без race condition), ограничение частоты запросов (50/IP/час + 300/день) с раздельными bucket'ами для чата и резолва ссылок, защита от брутфорса коротких кодов.
+Изящные детали реализации: атомарный инкремент счётчика кликов через `UPDATE ... WHERE hit_count < max_hits` (без race condition), ограничение частоты запросов (50/IP/час + 300/день) с раздельными bucket'ами для чата и резолва ссылок, защита от брутфорса коротких кодов, трекинг уникальных посетителей через session_id (единый профиль: клики + чат), lazy-cleanup чат-сессий (TTL 24ч).
 
 ## Интеграция AI и защита от галлюцинаций
 
@@ -88,4 +94,6 @@ Seed заполняет настройки дефолтными значения
 ## Дорожная карта
 
 - ~~Вынос захардкоженных значений в конфиг~~ ✅ — мастер-CV, промпты и README в БД, редактируются через `/admin/settings`
-- Расширенная аналитика просмотров и переходов по коротким ссылкам
+- ~~Расширенная аналитика просмотров~~ ✅ — трекинг уникальных посетителей (session_id + cookie), имена («Крепкий Кабан»), привязка к откликам, просмотр HR-чатов в `/admin/chats`
+- [ ] Напоминалка о собеседовании (на основании `interview.scheduled_at`)
+- [ ] Контрибьютинг-гайд и лицензия MIT
