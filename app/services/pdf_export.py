@@ -92,25 +92,25 @@ def generate_cv_pdf(markdown_text: str, title: str = "CV") -> bytes:
         if line.startswith("### "):
             pdf.set_font("CV", "B", 11)
             pdf.multi_cell(0, LH, _strip_links(line[4:].strip()), markdown=True,
-                           new_x="LMARGIN", new_y="NEXT")
+                           align="L", new_x="LMARGIN", new_y="NEXT")
             pdf.ln(1)
         elif line.startswith("## "):
             pdf.ln(2)
             pdf.set_font("CV", "B", 13)
             pdf.multi_cell(0, LH, _strip_links(line[3:].strip()), markdown=True,
-                           new_x="LMARGIN", new_y="NEXT")
+                           align="L", new_x="LMARGIN", new_y="NEXT")
             pdf.ln(1)
         elif line.startswith("# "):
             pdf.set_font("CV", "B", 16)
             pdf.multi_cell(0, LH + 2, _strip_links(line[2:].strip()), markdown=True,
-                           new_x="LMARGIN", new_y="NEXT")
+                           align="L", new_x="LMARGIN", new_y="NEXT")
             pdf.ln(3)
         elif line.startswith("- ") or line.startswith("* "):
             # Список: маркер • + текст. **bold** рендерится через markdown=True.
             text = _strip_links(line[2:].strip())
             pdf.set_font("CV", "", 10)
             pdf.multi_cell(0, LH, f"• {text}", markdown=True,
-                           new_x="LMARGIN", new_y="NEXT")
+                           align="L", new_x="LMARGIN", new_y="NEXT")
         elif line.startswith("|"):
             # Разделитель таблицы — пропускаем
             if re.match(r"^\|[-:| ]+\|$", line):
@@ -121,7 +121,8 @@ def generate_cv_pdf(markdown_text: str, title: str = "CV") -> bytes:
             cells = [c.strip() for c in clean.strip("|").split("|")]
             text = "   |   ".join(c for c in cells if c)
             pdf.set_font("CV", "", 9)
-            pdf.multi_cell(0, LH - 0.5, text, new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(0, LH - 0.5, text, align="L",
+                           new_x="LMARGIN", new_y="NEXT")
         elif line == "---":
             pdf.ln(3)
         else:
@@ -129,7 +130,7 @@ def generate_cv_pdf(markdown_text: str, title: str = "CV") -> bytes:
             text = _strip_links(line)
             pdf.set_font("CV", "", 10)
             pdf.multi_cell(0, LH, text, markdown=True,
-                           new_x="LMARGIN", new_y="NEXT")
+                           align="L", new_x="LMARGIN", new_y="NEXT")
 
     output = pdf.output()
     return bytes(output)
