@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_session
 from app.models import Project
-from app.schemas.project import ProjectOut
+from app.schemas.project import ProjectLinkOut, ProjectOut
 
 router = APIRouter()
 
@@ -21,6 +21,7 @@ async def list_projects(session: AsyncSession = Depends(get_session)) -> list[Pr
             short_desc=p.short_desc,
             stack=p.stack,
             metrics=p.metrics,
+            links=[ProjectLinkOut(**l) for l in (p.links or [])],
             order_idx=p.order_idx,
         )
         for p in rows
