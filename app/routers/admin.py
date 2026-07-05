@@ -724,25 +724,18 @@ async def list_chats(
     """Список HR-чатов (сессий) с краткой инфой.
 
     Имя: visitor_name если HR назвался, иначе сгенерированное (прилагательное+животное).
-    Админ: если session_id совпадает с cookie cv_session_id, ИЛИ если
-    ip_hash сессии совпадает с ip_hash админ-сессии — помечается is_admin.
+    Админ: если ip_hash сессии совпадает с ip_hash текущего запроса — is_admin.
+    Используем IP запроса (админ в браузере), а не cookie (cookie не доходит
+    через SSR-проксирование Next.js).
     """
     from sqlalchemy import func
 
+    from app.request_utils import client_ip
+    from app.services.chat_session import hash_ip as hash_ip_fn
     from app.services.visitor_names import generate_visitor_name
 
-    admin_session_id = request.cookies.get("cv_session_id")
-
-    # Находим ip_hash админ-сессии (для корреляции с другими сессиями того же IP).
-    admin_ip_hash = None
-    if admin_session_id:
-        admin_session = (
-            await session.execute(
-                select(ChatSession).where(ChatSession.id == admin_session_id)
-            )
-        ).scalar_one_or_none()
-        if admin_session:
-            admin_ip_hash = admin_session.ip_hash
+    # Хэш IP текущего запроса (админ в браузере → его IP).
+    admin_ip_hash = hash_ip_fn(client_ip(request))
 
     sessions = (
         await session.execute(
@@ -760,10 +753,8 @@ async def list_chats(
     result = []
     for s, count in sessions:
         sid_str = str(s.id)
-        # Админ: совпадение по session_id ИЛИ по ip_hash
-        is_admin = admin_session_id == sid_str or (
-            admin_ip_hash and s.ip_hash == admin_ip_hash
-        )
+        # Админ: совпадение по ip_hash (IP текущего запроса vs IP сессии)
+        is_admin = bool(admin_ip_hash and s.ip_hash == admin_ip_hash)
         # Имя: visitor_name если есть, иначе сгенерированное, для админа — «Валерий»
         if is_admin:
             display_name = "Валерий"
@@ -846,18 +837,11 @@ async def get_visitors(
     if not a or not a.short_link_code:
         return []
 
-    admin_session_id = request.cookies.get("cv_session_id")
+    from app.request_utils import client_ip
+    from app.services.chat_session import hash_ip as hash_ip_fn
 
-    # Находим ip_hash админ-сессии (для корреляции с другими сессиями того же IP).
-    admin_ip_hash = None
-    if admin_session_id:
-        admin_session = (
-            await session.execute(
-                select(ChatSession).where(ChatSession.id == admin_session_id)
-            )
-        ).scalar_one_or_none()
-        if admin_session:
-            admin_ip_hash = admin_session.ip_hash
+    # Хэш IP текущего запроса (админ в браузере).
+    admin_ip_hash = hash_ip_fn(client_ip(request))
 
     # Группируем LinkHit по session_id
     rows = (
@@ -885,8 +869,8 @@ async def get_visitors(
             )
         ).scalar_one_or_none()
 
-        # Админ: совпадение по session_id ИЛИ по ip_hash
-        is_admin = admin_session_id == sid_str or (
+        # Админ: совпадение по ip_hash
+        is_admin = bool(
             admin_ip_hash and chat_session and chat_session.ip_hash == admin_ip_hash
         )
 
