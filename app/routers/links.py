@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.deps import get_session
 from app.errors import AppError
 from app.ratelimit import check_resolve_rate
@@ -28,6 +29,14 @@ async def resolve(
     chat_session = await get_or_create_session(
         session, cookie_sid, ip, short_link_code=code
     )
+
+    # Если в cookie есть admin-token — помечаем сессию как админскую.
+    admin_token = request.cookies.get("cv_admin_token", "")
+    if admin_token and admin_token == settings.admin_token:
+        chat_session.is_admin = True
+        if not chat_session.visitor_name:
+            chat_session.visitor_name = "Валерий"
+
     await session.commit()
 
     slug, expires_at = await resolve_link(

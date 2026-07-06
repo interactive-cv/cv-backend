@@ -127,14 +127,26 @@ async def create_link(
 
 
 async def _count_clicks(session: AsyncSession, code: str | None) -> tuple[int, int]:
-    """Возвращает (total_clicks, unique_clicks) для короткой ссылки."""
+    """Возвращает (total_clicks, unique_clicks) для короткой ссылки.
+
+    Уникальность считается по session_id (надёжнее ip_hash — IP через
+    edge/stream-proxy одинаковый у всех посетителей).
+    Старые клики без session_id считаются по ip_hash (fallback).
+    """
     if not code:
         return 0, 0
     hits = (
         await session.execute(select(LinkHit).where(LinkHit.short_link_code == code))
     ).scalars().all()
     total = len(hits)
-    unique = len({h.ip_hash for h in hits if h.ip_hash})
+    # Уникальность: session_id (если есть), иначе fallback на ip_hash
+    unique_ids = set()
+    for h in hits:
+        if h.session_id:
+            unique_ids.add(str(h.session_id))
+        elif h.ip_hash:
+            unique_ids.add(h.ip_hash)
+    unique = len(unique_ids)
     return total, unique
 
 
