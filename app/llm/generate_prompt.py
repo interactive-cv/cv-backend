@@ -59,6 +59,7 @@ async def build_generate_prompt(
     selected_projects: list[str],
     kind: str = "vacancy",
     spec_text: str | None = None,
+    extra_instruction: str | None = None,
 ) -> str:
     """Собирает промпт для генерации CV и cover letter.
 
@@ -67,8 +68,9 @@ async def build_generate_prompt(
     Fallback на кодовые константы GENERATE_PROMPT_TEMPLATE / DEFAULT_FREELANCE.
 
     spec_text — ТЗ заказа (извлечённое из PDF или вставленное).
-    Если есть, подставляется в плейсхолдер {spec_text} промпта.
-    Если нет — плейсхолдер заменяется на пустоту.
+    extra_instruction — доп. указание владельца для этой конкретной генерации
+    (например: «убери 1С», «акцент на backend»).
+    Оба вставляются в промпт если есть.
     """
     from app.services.config_text import get_config_value
 
@@ -83,9 +85,15 @@ async def build_generate_prompt(
         template = await get_config_value(session, "prompt_generate") or GENERATE_PROMPT_TEMPLATE
     projects_str = ", ".join(selected_projects) if selected_projects else "на своё усмотрение"
     spec_section = spec_text.strip() if spec_text and spec_text.strip() else ""
-    # {spec_section} в промпте заменяется на блок ТЗ или пустоту.
-    # SPEC_SECTION_TEMPLATE содержит {spec_text} — двойной format не сработает
-    # ({{spec_text}} в шаблоне нужно обработать отдельно), поэтому заменяем вручную.
+
+    # Дополнительная инструкция владельца — добавляется в конец промпта.
+    instruction_block = ""
+    if extra_instruction and extra_instruction.strip():
+        instruction_block = (
+            f"\nДОПОЛНИТЕЛЬНОЕ УКАЗАНИЕ ВЛАЕЛЬЦА (выполни СТРОГО):\n"
+            f"{extra_instruction.strip()}\n"
+        )
+
     from app.seed_defaults import SPEC_SECTION_TEMPLATE
 
     spec_block = ""
@@ -97,7 +105,7 @@ async def build_generate_prompt(
         selected_projects=projects_str,
         cv_link=CV_LINK_PLACEHOLDER,
         spec_text=spec_section,
-        spec_section=spec_block,
+        spec_section=spec_block + instruction_block,
     )
 
 

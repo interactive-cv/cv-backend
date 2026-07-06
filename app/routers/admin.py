@@ -204,7 +204,7 @@ async def generate_cv(
         raise AppError("not_found", "Мастер-CV не найден", 404)
     prompt = await build_generate_prompt(
         session, master.full_markdown, body.vacancy_text, body.selected_projects,
-        body.kind, body.spec_text,
+        body.kind, body.spec_text, body.extra_instruction,
     )
     chunks: list[str] = []
     async for token in stream_chat(

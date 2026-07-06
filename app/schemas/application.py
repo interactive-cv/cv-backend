@@ -14,6 +14,7 @@ class GenerateIn(BaseModel):
     selected_projects: list[str] = []
     kind: Literal["vacancy", "freelance"] = "vacancy"
     spec_text: str | None = None
+    extra_instruction: str | None = None
 
 
 class GenerateOut(BaseModel):
