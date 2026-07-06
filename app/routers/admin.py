@@ -724,18 +724,12 @@ async def list_chats(
     """Список HR-чатов (сессий) с краткой инфой.
 
     Имя: visitor_name если HR назвался, иначе сгенерированное (прилагательное+животное).
-    Админ: если ip_hash сессии совпадает с ip_hash текущего запроса — is_admin.
-    Используем IP запроса (админ в браузере), а не cookie (cookie не доходит
-    через SSR-проксирование Next.js).
+    Админ: определяется по флагу ChatSession.is_admin (устанавливается
+    при наличии X-Admin-Token в запросе к /api/chat).
     """
     from sqlalchemy import func
 
-    from app.request_utils import client_ip
-    from app.services.chat_session import hash_ip as hash_ip_fn
     from app.services.visitor_names import generate_visitor_name
-
-    # Хэш IP текущего запроса (админ в браузере → его IP).
-    admin_ip_hash = hash_ip_fn(client_ip(request))
 
     sessions = (
         await session.execute(
@@ -753,8 +747,8 @@ async def list_chats(
     result = []
     for s, count in sessions:
         sid_str = str(s.id)
-        # Админ: совпадение по ip_hash (IP текущего запроса vs IP сессии)
-        is_admin = bool(admin_ip_hash and s.ip_hash == admin_ip_hash)
+        # Админ: по флагу is_admin в БД (не IP — IP через edge/nginx нерелевантен)
+        is_admin = bool(s.is_admin)
         # Имя: visitor_name если есть, иначе сгенерированное, для админа — «Валерий»
         if is_admin:
             display_name = "Валерий"
@@ -837,12 +831,7 @@ async def get_visitors(
     if not a or not a.short_link_code:
         return []
 
-    from app.request_utils import client_ip
-    from app.services.chat_session import hash_ip as hash_ip_fn
-
-    # Хэш IP текущего запроса (админ в браузере).
-    admin_ip_hash = hash_ip_fn(client_ip(request))
-
+    # Админ: по флагу is_admin в ChatSession (не IP — IP через edge нерелевантен)
     # Группируем LinkHit по session_id
     rows = (
         await session.execute(
@@ -869,10 +858,8 @@ async def get_visitors(
             )
         ).scalar_one_or_none()
 
-        # Админ: совпадение по ip_hash
-        is_admin = bool(
-            admin_ip_hash and chat_session and chat_session.ip_hash == admin_ip_hash
-        )
+        # Админ: по флагу is_admin в БД
+        is_admin = bool(chat_session and chat_session.is_admin)
 
         if is_admin:
             display_name = "Валерий"

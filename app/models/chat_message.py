@@ -31,6 +31,9 @@ class ChatSession(Base):
     short_link_code: Mapped[Optional[str]] = mapped_column(
         Text, ForeignKey("short_link.code"), nullable=True
     )
+    # Флаг: сессия принадлежит владельцу (админу). Устанавливается
+    # при наличии X-Admin-Token в запросе к /api/chat.
+    is_admin: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_active_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 

@@ -47,6 +47,13 @@ async def chat(
         session, req.session_id, ip, req.short_link_code
     )
 
+    # Проверяем, владелец ли пишет (по X-Admin-Token из localStorage)
+    admin_token = request.headers.get("x-admin-token", "")
+    if admin_token and admin_token == settings.admin_token:
+        chat_session.is_admin = True
+        if not chat_session.visitor_name:
+            chat_session.visitor_name = "Валерий"
+
     # Сохраняем user-сообщение
     await save_message(session, chat_session, "user", req.message)
 
