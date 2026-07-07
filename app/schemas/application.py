@@ -15,6 +15,7 @@ class GenerateIn(BaseModel):
     kind: Literal["vacancy", "freelance"] = "vacancy"
     spec_text: str | None = None
     extra_instruction: str | None = None
+    temperature: float = 0.8
 
 
 class GenerateOut(BaseModel):

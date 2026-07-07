@@ -208,7 +208,8 @@ async def generate_cv(
     )
     chunks: list[str] = []
     async for token in stream_chat(
-        [{"role": "user", "content": "Сгенерируй отклик"}], prompt, temperature=0.3
+        [{"role": "user", "content": "Сгенерируй отклик"}], prompt,
+        temperature=body.temperature,
     ):
         chunks.append(token)
     cv_md, cover_md = parse_generate_response("".join(chunks))
