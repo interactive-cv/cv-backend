@@ -109,14 +109,15 @@ async def build_generate_prompt(
     )
 
 
-def parse_generate_response(text: str) -> tuple[str, str]:
-    """Парсит ответ LLM: ===CV===...===COVER===...===END=== → (cv_md, cover_plain).
+def parse_generate_response(text: str) -> tuple[str, str, str | None]:
+    """Парсит ответ LLM: ===CV===...===COVER===...===END=== → (cv_md, cover_plain, estimate).
 
+    estimate — блок оценки стоимости/сроков (только для фриланс-заказов).
     Если маркеры отсутствуют — весь текст считается CV, cover пустой.
-    Поддерживает старый формат (без ===END===) для обратной совместимости.
     """
     cv = ""
     cover = ""
+    estimate = None
     if "===CV===" in text and "===COVER===" in text:
         cv_part = text.split("===CV===")[1].split("===COVER===")[0]
         cover_part = text.split("===COVER===")[1]
@@ -125,6 +126,10 @@ def parse_generate_response(text: str) -> tuple[str, str]:
             cover_part = cover_part.split("===END===")[0]
         cv = cv_part.strip()
         cover = cover_part.strip()
+
+        # Извлекаем оценку (===ESTIMATE=== ... конец текста)
+        if "===ESTIMATE===" in text:
+            estimate = text.split("===ESTIMATE===")[1].strip()
     else:
         cv = text.strip()
-    return cv, cover
+    return cv, cover, estimate

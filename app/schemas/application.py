@@ -19,10 +19,11 @@ class GenerateIn(BaseModel):
 
 
 class GenerateOut(BaseModel):
-    """Результат генерации: CV (markdown) и cover letter (плейн-текст)."""
+    """Результат генерации: CV (markdown), cover letter (плейн-текст), оценка."""
 
     cv_markdown: str
     cover_letter: str
+    estimate: str | None = None
 
 
 class ApplicationCreateIn(BaseModel):

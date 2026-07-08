@@ -212,8 +212,8 @@ async def generate_cv(
         temperature=body.temperature,
     ):
         chunks.append(token)
-    cv_md, cover_md = parse_generate_response("".join(chunks))
-    return GenerateOut(cv_markdown=cv_md, cover_letter=cover_md)
+    cv_md, cover_md, estimate = parse_generate_response("".join(chunks))
+    return GenerateOut(cv_markdown=cv_md, cover_letter=cover_md, estimate=estimate)
 
 
 @router.get("/applications")

@@ -126,14 +126,27 @@ def test_parse_generate_response_extracts_both_sections():
     from app.llm.generate_prompt import parse_generate_response
 
     text = "===CV===\n# CV\nFlutter dev\n===COVER===\n# Cover\nПривет!"
-    cv, cover = parse_generate_response(text)
+    cv, cover, estimate = parse_generate_response(text)
     assert "# CV" in cv
     assert "Привет!" in cover
+    assert estimate is None
+
+
+def test_parse_generate_response_extracts_estimate():
+    from app.llm.generate_prompt import parse_generate_response
+
+    text = "===CV===\n# CV\n===COVER===\nПривет!\n===END===\n===ESTIMATE===\nОценка стоимости: 50000-100000\nОценка срока: 2-3 недели"
+    cv, cover, estimate = parse_generate_response(text)
+    assert "Привет" in cover
+    assert estimate is not None
+    assert "50000" in estimate
+    assert "2-3 недели" in estimate
 
 
 def test_parse_generate_response_fallback_no_markers():
     from app.llm.generate_prompt import parse_generate_response
 
-    cv, cover = parse_generate_response("Просто текст без маркеров")
+    cv, cover, estimate = parse_generate_response("Просто текст без маркеров")
     assert cv == "Просто текст без маркеров"
     assert cover == ""
+    assert estimate is None
