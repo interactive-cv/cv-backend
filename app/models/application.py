@@ -75,6 +75,8 @@ class Application(Base):
     # ТЗ заказа (извлечённый текст из PDF или вставленный вручную).
     # Идёт в промпт генерации если заполнено, повышая релевантность отклика.
     spec_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Оценка стоимости/сроков от LLM (только для фриланс, только для владельца).
+    estimate: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     published_at: Mapped[Optional[datetime]] = mapped_column(

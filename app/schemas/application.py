@@ -14,6 +14,7 @@ class GenerateIn(BaseModel):
     selected_projects: list[str] = []
     kind: Literal["vacancy", "freelance"] = "vacancy"
     spec_text: str | None = None
+    estimate: str | None = None
     extra_instruction: str | None = None
     temperature: float = 0.8
 
@@ -45,6 +46,7 @@ class ApplicationCreateIn(BaseModel):
     expected_term: str | None = None
     rating: int | None = None
     spec_text: str | None = None
+    estimate: str | None = None
 
 
 class ApplicationUpdateIn(BaseModel):
@@ -64,6 +66,7 @@ class ApplicationUpdateIn(BaseModel):
     expected_term: str | None = None
     rating: int | None = None
     spec_text: str | None = None
+    estimate: str | None = None
 
 
 class ApplicationOut(BaseModel):
@@ -96,4 +99,5 @@ class ApplicationDetailOut(ApplicationOut):
     cv_markdown: str = ""
     cover_letter: str = ""
     spec_text: str | None = None
+    estimate: str | None = None
     last_click_at: datetime | None = None

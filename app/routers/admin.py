@@ -245,6 +245,7 @@ async def list_applications(
                 expected_term=a.expected_term,
                 rating=a.rating,
                 spec_text=a.spec_text,
+                estimate=a.estimate,
                 created_at=a.created_at,
                 published_at=a.published_at,
             )
@@ -311,6 +312,7 @@ async def create_application(
         expected_term=body.expected_term,
         rating=body.rating,
         spec_text=body.spec_text,
+        estimate=body.estimate,
         published_at=(
             datetime.now(timezone.utc) if body.status == "active" else None
         ),
@@ -409,6 +411,8 @@ async def update_application(
         a.rating = body.rating
     if body.spec_text is not None:
         a.spec_text = body.spec_text
+    if body.estimate is not None:
+        a.estimate = body.estimate
     await session.commit()
     return {"id": str(a.id), "status": a.status.value}
 
