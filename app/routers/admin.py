@@ -361,6 +361,8 @@ async def get_application(
         deadline=a.deadline,
         expected_term=a.expected_term,
         rating=a.rating,
+        spec_text=a.spec_text,
+        estimate=a.estimate,
         created_at=a.created_at,
         published_at=a.published_at,
     )
