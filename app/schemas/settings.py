@@ -19,6 +19,7 @@ class SettingsOut(BaseModel):
     prompt_chat: ConfigTextOut
     prompt_generate: ConfigTextOut
     prompt_generate_freelance: ConfigTextOut
+    prompt_generate_contest: ConfigTextOut
     prompt_cv_edit: ConfigTextOut
 
 
@@ -30,6 +31,7 @@ class SettingsUpdateIn(BaseModel):
     prompt_chat: str | None = None
     prompt_generate: str | None = None
     prompt_generate_freelance: str | None = None
+    prompt_generate_contest: str | None = None
     prompt_cv_edit: str | None = None
 
 

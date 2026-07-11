@@ -63,9 +63,11 @@ async def build_generate_prompt(
 ) -> str:
     """Собирает промпт для генерации CV и cover letter.
 
-    Шаблон берётся из БД. Для фриланс-заказов (kind=freelance) — отдельный
-    ключ prompt_generate_freelance, для вакансий — prompt_generate.
-    Fallback на кодовые константы GENERATE_PROMPT_TEMPLATE / DEFAULT_FREELANCE.
+    Шаблон берётся из БД:
+      - vacancy → prompt_generate
+      - freelance → prompt_generate_freelance
+      - contest → prompt_generate_contest
+    Fallback на кодовые константы из seed_defaults.
 
     spec_text — ТЗ заказа (извлечённое из PDF или вставленное).
     extra_instruction — доп. указание владельца для этой конкретной генерации
@@ -80,6 +82,13 @@ async def build_generate_prompt(
         template = (
             await get_config_value(session, "prompt_generate_freelance")
             or DEFAULT_PROMPT_GENERATE_FREELANCE
+        )
+    elif kind == "contest":
+        from app.seed_defaults import DEFAULT_PROMPT_GENERATE_CONTEST
+
+        template = (
+            await get_config_value(session, "prompt_generate_contest")
+            or DEFAULT_PROMPT_GENERATE_CONTEST
         )
     else:
         template = await get_config_value(session, "prompt_generate") or GENERATE_PROMPT_TEMPLATE

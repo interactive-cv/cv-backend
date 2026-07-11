@@ -41,5 +41,6 @@ CONFIG_KEYS = [
     "prompt_chat",
     "prompt_generate",
     "prompt_generate_freelance",
+    "prompt_generate_contest",
     "prompt_cv_edit",
 ]

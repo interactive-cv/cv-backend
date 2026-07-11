@@ -13,7 +13,7 @@
 - **PostgreSQL 16** — основное хранилище
 - **httpx** — стриминговый клиент к LLM (Server-Sent Events) в паттерне RAG
 - **AI/LLM** — интеграция языковых моделей в продукт: RAG без векторной БД, prompt engineering с защитой от галлюцинаций, стриминг ответов (SSE)
-- **pytest, pytest-asyncio, respx** — 54 unit-теста + 3 e2e-теста RAG против реальной модели
+- **pytest, pytest-asyncio, respx** — 62 unit-теста + 3 e2e-теста RAG против реальной модели
 
 ## Что умеет
 
@@ -25,9 +25,9 @@
 | `GET /api/links/resolve?code=` | Резолв короткой ссылки с TTL, лимитом кликов и session_id трекингом |
 | `POST /api/chat` | AI-чат (стриминг, RAG по CV, контекст диалога, сессии) |
 | `GET /api/chat/history/{id}` | История диалога по session_id (восстановление при перезагрузке) |
-| `POST /admin/applications/generate` | **AI-генерация CV и cover letter** (LLM, RAG, тип vacancy/freelance, ТЗ из PDF) |
+| `POST /admin/applications/generate` | **AI-генерация CV и cover letter** (LLM, RAG, тип vacancy/freelance/contest, ТЗ из PDF) |
 | `POST /admin/applications/upload-spec` | Загрузка ТЗ в PDF → извлечение текста (pypdf) → в промпт |
-| `GET/POST/PATCH/DELETE /admin/applications` | CRUD откликов: вакансии и фриланс-заказы (бюджет, конкурс, срок, рейтинг, ссылки, ТЗ) |
+| `GET/POST/PATCH/DELETE /admin/applications` | CRUD откликов: вакансии, фриланс-заказы и конкурсы (бюджет, приз, срок, рейтинг, ссылки, ТЗ) |
 | `GET /admin/applications/{id}/pdf` | **Экспорт CV в PDF** (fpdf2, Unicode, кириллица) |
 | `GET /admin/applications/{id}/visitors` | Уникальные посетители CV (имена, кол-во просмотров, был ли чат) |
 | `POST /admin/applications/{id}/publish` | Публикация: короткая ссылка, status=active (переиспользование при републикации) |
@@ -79,7 +79,7 @@ tests/           42 теста (unit на in-memory SQLite + e2e против gl
 - **FastAPI**, **Next.js** и **PostgreSQL** — в изолированной docker-сети
 - Весь стек описан в `docker-compose.prod.yml`, обновление — одной командой `bash deploy.sh` (rsync + пересборка образов + миграции Alembic + seed)
 
-Все персональные данные (имя, контакты, проекты, домен, ключ LLM) выносятся в `seed_data/` и `.env` — поэтому чужое CV разворачивается заменой контента без правки кода. Репозиторий фронтенда: [cv-frontend](https://github.com/vrg18/cv-frontend).
+Все персональные данные (имя, контакты, проекты, домен, ключ LLM) выносятся в `seed_data/` и `.env` — поэтому чужое CV разворачивается заменой контента без правки кода. Репозиторий фронтенда: [cv-frontend](https://github.com/interactive-cv/cv-frontend).
 
 ## Настройка через админку
 
@@ -95,5 +95,6 @@ Seed заполняет настройки дефолтными значения
 
 - ~~Вынос захардкоженных значений в конфиг~~ ✅ — мастер-CV, промпты и README в БД, редактируются через `/admin/settings`
 - ~~Расширенная аналитика просмотров~~ ✅ — трекинг уникальных посетителей (session_id + cookie), имена («Крепкий Кабан»), привязка к откликам, просмотр HR-чатов в `/admin/chats`
+- ~~Конкурсы FL.ru~~ ✅ — третий тип откликов (contest) с отдельным промптом: тон участника, оценка реалистичности участия
 - [ ] Напоминалка о собеседовании (на основании `interview.scheduled_at`)
 - [ ] Контрибьютинг-гайд и лицензия MIT

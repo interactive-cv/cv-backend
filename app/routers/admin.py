@@ -652,6 +652,9 @@ async def get_settings(
         prompt_generate_freelance=_config_row(
             rows.get("prompt_generate_freelance"), "prompt_generate_freelance"
         ),
+        prompt_generate_contest=_config_row(
+            rows.get("prompt_generate_contest"), "prompt_generate_contest"
+        ),
         prompt_cv_edit=_config_row(rows.get("prompt_cv_edit"), "prompt_cv_edit"),
     )
 

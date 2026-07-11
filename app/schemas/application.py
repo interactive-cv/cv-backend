@@ -12,7 +12,7 @@ class GenerateIn(BaseModel):
     role: str
     vacancy_text: str
     selected_projects: list[str] = []
-    kind: Literal["vacancy", "freelance"] = "vacancy"
+    kind: Literal["vacancy", "freelance", "contest"] = "vacancy"
     spec_text: str | None = None
     estimate: str | None = None
     extra_instruction: str | None = None
@@ -37,7 +37,7 @@ class ApplicationCreateIn(BaseModel):
     cv_markdown: str
     slug: str
     status: Literal["draft", "active"] = "draft"
-    kind: Literal["vacancy", "freelance"] = "vacancy"
+    kind: Literal["vacancy", "freelance", "contest"] = "vacancy"
     source_url: str | None = None
     chat_url: str | None = None
     budget: str | None = None
@@ -57,7 +57,7 @@ class ApplicationUpdateIn(BaseModel):
     cover_letter: str | None = None
     cv_markdown: str | None = None
     status: Literal["draft", "active", "archived"] | None = None
-    kind: Literal["vacancy", "freelance"] | None = None
+    kind: Literal["vacancy", "freelance", "contest"] | None = None
     source_url: str | None = None
     chat_url: str | None = None
     budget: str | None = None

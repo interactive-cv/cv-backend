@@ -24,10 +24,11 @@ class ApplicationStatus(str, Enum):
 
 
 class ApplicationKind(str, Enum):
-    """Тип отклика: вакансия (полная занятость) или фриланс-заказ."""
+    """Тип отклика: вакансия, фриланс-заказ или конкурс."""
 
     vacancy = "vacancy"
     freelance = "freelance"
+    contest = "contest"
 
 
 class Application(Base):
