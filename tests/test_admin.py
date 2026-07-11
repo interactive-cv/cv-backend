@@ -159,6 +159,8 @@ async def test_admin_generate_cv(client, session):
     data = res.json()
     assert "# CV" in data["cv_markdown"]
     assert "# Cover" in data["cover_letter"]
+    assert "prompt" in data
+    assert len(data["prompt"]) > 0  # промпт собран и возвращён
 
 
 @pytest.mark.asyncio
@@ -173,6 +175,7 @@ async def test_admin_create_and_list_application(client, session):
             "cv_markdown": "# CV",
             "cover_letter": "# Cover",
             "slug": "acme-dev",
+            "generated_prompt": "Ты — помощник... МАСТЕР-CV: # CV\nFlutter",
         },
     )
     assert res.status_code == 201
@@ -192,6 +195,7 @@ async def test_admin_create_and_list_application(client, session):
     detail = res.json()
     assert detail["vacancy_text"] == "Текст вакансии"
     assert detail["cv_markdown"] == "# CV"
+    assert detail["generated_prompt"] == "Ты — помощник... МАСТЕР-CV: # CV\nFlutter"
 
 
 @pytest.mark.asyncio
@@ -235,3 +239,78 @@ async def test_admin_archive_application(client, session):
     res = await client.post(f"/api/admin/applications/{app_id}/archive", headers=VALID)
     assert res.status_code == 200
     assert res.json()["status"] == "archived"
+
+
+@pytest.mark.asyncio
+async def test_admin_interview_crud(client, session):
+    """CRUD интервью: создать → в detail → patch → delete."""
+    # создаём отклик
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "Int", "role": "Dev", "vacancy_text": "v",
+            "cv_markdown": "# m", "cover_letter": "", "slug": "int-1",
+        },
+    )
+    app_id = res.json()["id"]
+
+    # создаём интервью
+    res = await client.post(
+        f"/api/admin/applications/{app_id}/interviews",
+        headers=VALID,
+        json={"scheduled_at": "2026-08-01T12:00:00Z", "notes_before": "подготовить стек"},
+    )
+    assert res.status_code == 201
+    iv_id = res.json()["id"]
+    assert res.json()["notes_before"] == "подготовить стек"
+
+    # интервью появляется в detail отклика
+    detail = (await client.get(f"/api/admin/applications/{app_id}", headers=VALID)).json()
+    assert len(detail["interviews"]) == 1
+    assert detail["interviews"][0]["id"] == iv_id
+
+    # редактируем
+    res = await client.patch(
+        f"/api/admin/interviews/{iv_id}",
+        headers=VALID,
+        json={"notes_after": "прошло хорошо"},
+    )
+    assert res.status_code == 200
+    assert res.json()["notes_after"] == "прошло хорошо"
+
+    # удаляем
+    res = await client.delete(f"/api/admin/interviews/{iv_id}", headers=VALID)
+    assert res.status_code == 204
+
+    # больше нет в detail
+    detail = (await client.get(f"/api/admin/applications/{app_id}", headers=VALID)).json()
+    assert len(detail["interviews"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_admin_upcoming_interviews(client, session):
+    """Дашборд: upcoming возвращает только будущие интервью."""
+    # отклик + интервью в будущем
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "Up", "role": "Dev", "vacancy_text": "v",
+            "cv_markdown": "# m", "cover_letter": "", "slug": "up-1",
+        },
+    )
+    app_id = res.json()["id"]
+    await client.post(
+        f"/api/admin/applications/{app_id}/interviews",
+        headers=VALID,
+        json={"scheduled_at": "2099-12-31T10:00:00Z"},
+    )
+
+    # upcoming
+    res = await client.get("/api/admin/upcoming", headers=VALID)
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) >= 1
+    assert data[0]["application_role"] == "Dev"
+    assert data[0]["application_company"] == "Up"

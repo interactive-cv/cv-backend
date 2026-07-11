@@ -78,6 +78,9 @@ class Application(Base):
     spec_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Оценка стоимости/сроков от LLM (только для фриланс, только для владельца).
     estimate: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Snapshot отрендеренного промпта, который породил CV/cover letter.
+    # Для воспроизводимости и отладки. Не показывается кандидатам/HR.
+    generated_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     published_at: Mapped[Optional[datetime]] = mapped_column(

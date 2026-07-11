@@ -40,6 +40,11 @@ from app.schemas.application import (
     GenerateOut,
 )
 from app.schemas.cv import CVVariantCreateIn
+from app.schemas.interview import (
+    InterviewCreateIn,
+    InterviewOut,
+    InterviewUpdateIn,
+)
 from app.schemas.link import LinkCreateIn
 from app.schemas.settings import (
     ConfigTextOut,
@@ -213,7 +218,7 @@ async def generate_cv(
     ):
         chunks.append(token)
     cv_md, cover_md, estimate = parse_generate_response("".join(chunks))
-    return GenerateOut(cv_markdown=cv_md, cover_letter=cover_md, estimate=estimate)
+    return GenerateOut(cv_markdown=cv_md, cover_letter=cover_md, estimate=estimate, prompt=prompt)
 
 
 @router.get("/applications")
@@ -313,6 +318,7 @@ async def create_application(
         rating=body.rating,
         spec_text=body.spec_text,
         estimate=body.estimate,
+        generated_prompt=body.generated_prompt,
         published_at=(
             datetime.now(timezone.utc) if body.status == "active" else None
         ),
@@ -341,6 +347,14 @@ async def get_application(
         v = await session.get(CVVariant, a.cv_variant_id)
         cv_md = v.content_markdown if v else ""
     total, unique = await _count_clicks(session, a.short_link_code)
+    # Подгружаем интервью для этого отклика
+    interviews = (
+        await session.execute(
+            select(Interview)
+            .where(Interview.application_id == a.id)
+            .order_by(Interview.scheduled_at)
+        )
+    ).scalars().all()
     return ApplicationDetailOut(
         id=a.id,
         company=a.company,
@@ -363,6 +377,18 @@ async def get_application(
         rating=a.rating,
         spec_text=a.spec_text,
         estimate=a.estimate,
+        generated_prompt=a.generated_prompt,
+        interviews=[
+            InterviewOut(
+                id=str(i.id),
+                application_id=str(i.application_id),
+                scheduled_at=i.scheduled_at,
+                notes_before=i.notes_before,
+                notes_after=i.notes_after,
+                created_at=i.created_at,
+            )
+            for i in interviews
+        ],
         created_at=a.created_at,
         published_at=a.published_at,
     )
@@ -626,6 +652,119 @@ async def download_cv_pdf(
             "Content-Disposition": f'attachment; filename="{filename}"',
         },
     )
+
+
+# ===== Interviews: этапы собеседований =====
+
+
+@router.post("/applications/{app_id}/interviews", status_code=201)
+async def create_interview(
+    app_id: str,
+    body: InterviewCreateIn,
+    session: AsyncSession = Depends(get_session),
+) -> InterviewOut:
+    """Создать этап собеседования для отклика."""
+    # Проверяем что отклик существует
+    a = await session.get(Application, uuid.UUID(app_id))
+    if not a:
+        raise AppError("not_found", "Отклик не найден", 404)
+    interview = Interview(
+        application_id=uuid.UUID(app_id),
+        scheduled_at=body.scheduled_at,
+        notes_before=body.notes_before,
+        notes_after=body.notes_after,
+    )
+    session.add(interview)
+    await session.commit()
+    await session.refresh(interview)
+    return InterviewOut(
+        id=str(interview.id),
+        application_id=str(interview.application_id),
+        scheduled_at=interview.scheduled_at,
+        notes_before=interview.notes_before,
+        notes_after=interview.notes_after,
+        created_at=interview.created_at,
+        application_role=a.role,
+        application_company=a.company,
+    )
+
+
+@router.patch("/interviews/{interview_id}")
+async def update_interview(
+    interview_id: str,
+    body: InterviewUpdateIn,
+    session: AsyncSession = Depends(get_session),
+) -> InterviewOut:
+    """Редактировать этап собеседования (перенос даты, заметки)."""
+    i = await session.get(Interview, uuid.UUID(interview_id))
+    if not i:
+        raise AppError("not_found", "Интервью не найдено", 404)
+    if body.scheduled_at is not None:
+        i.scheduled_at = body.scheduled_at
+    if body.notes_before is not None:
+        i.notes_before = body.notes_before
+    if body.notes_after is not None:
+        i.notes_after = body.notes_after
+    await session.commit()
+    # Подгружаем данные отклика для денормализации
+    a = await session.get(Application, i.application_id)
+    return InterviewOut(
+        id=str(i.id),
+        application_id=str(i.application_id),
+        scheduled_at=i.scheduled_at,
+        notes_before=i.notes_before,
+        notes_after=i.notes_after,
+        created_at=i.created_at,
+        application_role=a.role if a else None,
+        application_company=a.company if a else None,
+    )
+
+
+@router.delete("/interviews/{interview_id}", status_code=204)
+async def delete_interview(
+    interview_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Удалить этап собеседования."""
+    i = await session.get(Interview, uuid.UUID(interview_id))
+    if not i:
+        raise AppError("not_found", "Интервью не найдено", 404)
+    await session.delete(i)
+    await session.commit()
+
+
+@router.get("/upcoming")
+async def get_upcoming_interviews(
+    session: AsyncSession = Depends(get_session),
+) -> list[InterviewOut]:
+    """Ближайшие собеседования (для дашборда).
+
+    Возвращает интервью с scheduled_at >= now(), отсортированные по времени.
+    Limit 10. Денормализованы поля отклика (role, company) для отображения.
+    """
+    now = datetime.now(timezone.utc)
+    rows = (
+        await session.execute(
+            select(Interview, Application)
+            .join(Application, Interview.application_id == Application.id)
+            .where(Interview.scheduled_at >= now)
+            .order_by(Interview.scheduled_at)
+            .limit(10)
+        )
+    ).all()
+    return [
+        InterviewOut(
+            id=str(i.id),
+            application_id=str(i.application_id),
+            scheduled_at=i.scheduled_at,
+            notes_before=i.notes_before,
+            notes_after=i.notes_after,
+            created_at=i.created_at,
+            application_role=a.role,
+            application_company=a.company,
+        )
+        for i, a in rows
+    ]
 
 
 # ===== Settings: редактируемые тексты (мастер-CV, README, промпты) =====

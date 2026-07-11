@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.schemas.interview import InterviewOut
+
 
 class GenerateIn(BaseModel):
     """Вход AI-генерации CV из вакансии или фриланс-заказа."""
@@ -20,11 +22,12 @@ class GenerateIn(BaseModel):
 
 
 class GenerateOut(BaseModel):
-    """Результат генерации: CV (markdown), cover letter (плейн-текст), оценка."""
+    """Результат генерации: CV (markdown), cover letter (плейн-текст), оценка, промпт."""
 
     cv_markdown: str
     cover_letter: str
     estimate: str | None = None
+    prompt: str = ""
 
 
 class ApplicationCreateIn(BaseModel):
@@ -47,6 +50,7 @@ class ApplicationCreateIn(BaseModel):
     rating: int | None = None
     spec_text: str | None = None
     estimate: str | None = None
+    generated_prompt: str | None = None
 
 
 class ApplicationUpdateIn(BaseModel):
@@ -100,4 +104,7 @@ class ApplicationDetailOut(ApplicationOut):
     cover_letter: str = ""
     spec_text: str | None = None
     estimate: str | None = None
+    generated_prompt: str | None = None
+    interviews: list[InterviewOut] = []
     last_click_at: datetime | None = None
+
