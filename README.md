@@ -13,7 +13,7 @@
 - **PostgreSQL 16** — основное хранилище
 - **httpx** — стриминговый клиент к LLM (Server-Sent Events) в паттерне RAG
 - **AI/LLM** — интеграция языковых моделей в продукт: RAG без векторной БД, prompt engineering с защитой от галлюцинаций, стриминг ответов (SSE)
-- **pytest, pytest-asyncio, respx** — 62 unit-теста + 3 e2e-теста RAG против реальной модели
+- **pytest, pytest-asyncio, respx** — 64 unit-теста + 3 e2e-теста RAG против реальной модели
 
 ## Что умеет
 
@@ -31,12 +31,14 @@
 | `GET /admin/applications/{id}/pdf` | **Экспорт CV в PDF** (fpdf2, Unicode, кириллица) |
 | `GET /admin/applications/{id}/visitors` | Уникальные посетители CV (имена, кол-во просмотров, был ли чат) |
 | `POST /admin/applications/{id}/publish` | Публикация: короткая ссылка, status=active (переиспользование при републикации) |
+| `POST/PATCH/DELETE /admin/applications/{id}/interviews` | **CRUD собеседований**: дата/время, заметки до/после |
+| `GET /admin/upcoming` | Ближайшие собеседования (дашборд, `scheduled_at >= now()`, limit 10) |
 | `GET/PATCH /admin/settings` | **Настройки в БД**: мастер-CV, README, промпты (редактируемые через админку) |
 | `POST /admin/settings/master-cv/preview` | **AI-правка CV**: инструкция → предпросмотр → применение |
 | `GET /admin/chats` | Список HR-чатов с именами посетителей («Крепкий Кабан» и т.д.) |
 | `GET /admin/chats/{id}` | Полный диалог HR-сессии |
 
-Изящные детали реализации: атомарный инкремент счётчика кликов через `UPDATE ... WHERE hit_count < max_hits` (без race condition), ограничение частоты запросов (50/IP/час + 300/день) с раздельными bucket'ами для чата и резолва ссылок, защита от брутфорса коротких кодов, трекинг уникальных посетителей через session_id (единый профиль: клики + чат), lazy-cleanup чат-сессий (TTL 24ч).
+Изящные детали реализации: атомарный инкремент счётчика кликов через `UPDATE ... WHERE hit_count < max_hits` (без race condition), ограничение частоты запросов (50/IP/час + 300/день) с раздельными bucket'ами для чата и резолва ссылок, защита от брутфорса коротких кодов, трекинг уникальных посетителей через session_id (единый профиль: клики + чат), snapshot промпта генерации на каждый отклик (воспроизводимость), lazy-cleanup чат-сессий (TTL 24ч).
 
 ## Интеграция AI и защита от галлюцинаций
 
@@ -66,7 +68,7 @@ app/
 ├── services/    бизнес-логика (резолв ссылок, парсер CV → структуру)
 ├── llm/         промпт-инжиниринг и стриминговый клиент Z.ai
 └── errors.py    единый формат ошибок {error, message, request_id}
-tests/           42 теста (unit на in-memory SQLite + e2e против glm-5.2)
+tests/           64 теста (unit на in-memory SQLite + e2e против glm-5.2)
 ```
 
 Тесты запускаются на in-memory SQLite (кросс-БД типы через `TypeDecorator`), а в проде на PostgreSQL те же модели транслируются в нативные `jsonb`/`uuid` — без изменения кода.
