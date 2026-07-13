@@ -1,8 +1,8 @@
 name: backend CI
 
+# CI прогоняется на всех ветках и PR — проверка качества перед merge.
 on:
   push:
-    branches: [main]
   pull_request:
 
 jobs:

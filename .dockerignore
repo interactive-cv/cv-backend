@@ -1,0 +1,15 @@
+# Файлы, которые НЕ должны попадать в Docker-образ.
+# Build context остаётся чистым и быстрым.
+.env
+.env.*
+.venv
+.git
+.github
+__pycache__
+*.pyc
+*.egg-info
+.pytest_cache
+.ruff_cache
+tests/
+DEPLOY_RULES.md
+*.md
