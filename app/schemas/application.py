@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from app.schemas.interview import InterviewOut
+from app.schemas.artifact import ArtifactOut
 
 
 class GenerateIn(BaseModel):
@@ -106,5 +107,6 @@ class ApplicationDetailOut(ApplicationOut):
     estimate: str | None = None
     generated_prompt: str | None = None
     interviews: list[InterviewOut] = []
+    artifacts: list[ArtifactOut] = []
     last_click_at: datetime | None = None
 

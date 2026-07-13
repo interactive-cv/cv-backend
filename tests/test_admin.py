@@ -314,3 +314,105 @@ async def test_admin_upcoming_interviews(client, session):
     assert len(data) >= 1
     assert data[0]["application_role"] == "Dev"
     assert data[0]["application_company"] == "Up"
+
+
+# ===== Тесты артефактов конкурсных откликов =====
+
+
+@pytest.mark.asyncio
+async def test_upload_and_download_artifact(client, session):
+    """Загрузка артефакта → публичная ссылка → скачивание."""
+    # создаём отклик
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "Test", "role": "Dev", "vacancy_text": "v",
+            "cv_markdown": "# m", "cover_letter": "", "slug": "art-1",
+        },
+    )
+    app_id = res.json()["id"]
+
+    # загружаем файл
+    res = await client.post(
+        f"/api/admin/applications/{app_id}/artifacts",
+        headers=VALID,
+        files={"file": ("clapgo.apk", b"FAKE_APK_BYTES_12345", "application/vnd.android.package-archive")},
+    )
+    assert res.status_code == 201
+    data = res.json()
+    assert data["filename"] == "clapgo.apk"
+    assert data["size_bytes"] > 0
+    assert "/dl/" in data["download_url"]
+    code = data["code"]
+    artifact_id = data["id"]
+
+    # артефакт виден в деталях отклика
+    detail = (await client.get(f"/api/admin/applications/{app_id}", headers=VALID)).json()
+    assert len(detail["artifacts"]) == 1
+    assert detail["artifacts"][0]["code"] == code
+
+    # публичное скачивание (без admin-auth)
+    res = await client.get(f"/dl/{code}")
+    assert res.status_code == 200
+    assert b"FAKE_APK" in res.content
+    assert "attachment" in res.headers.get("content-disposition", "")
+
+    # удаление
+    res = await client.delete(f"/api/admin/artifacts/{artifact_id}", headers=VALID)
+    assert res.status_code == 204
+    # больше не скачивается
+    res = await client.get(f"/dl/{code}")
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_artifact_archived_gone(client, session):
+    """Архивированный отклик → 410 Gone при скачивании артефакта."""
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "Gone", "role": "Dev", "vacancy_text": "v",
+            "cv_markdown": "# m", "cover_letter": "", "slug": "art-gone",
+        },
+    )
+    app_id = res.json()["id"]
+
+    res = await client.post(
+        f"/api/admin/applications/{app_id}/artifacts",
+        headers=VALID,
+        files={"file": ("test.zip", b"ZIP_DATA", "application/zip")},
+    )
+    code = res.json()["code"]
+
+    # архивируем
+    await client.post(f"/api/admin/applications/{app_id}/archive", headers=VALID)
+
+    # скачивание → 410
+    res = await client.get(f"/dl/{code}")
+    assert res.status_code == 410
+
+
+@pytest.mark.asyncio
+async def test_artifact_size_limit(client, session, monkeypatch):
+    """Превышение лимита размера → 400."""
+    from app.config import settings as cfg
+    monkeypatch.setattr(cfg, "artifact_max_size_mb", 0)  # 0 MB = 0 bytes max
+
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "Big", "role": "Dev", "vacancy_text": "v",
+            "cv_markdown": "# m", "cover_letter": "", "slug": "art-big",
+        },
+    )
+    app_id = res.json()["id"]
+
+    res = await client.post(
+        f"/api/admin/applications/{app_id}/artifacts",
+        headers=VALID,
+        files={"file": ("big.apk", b"X" * 100, "application/octet-stream")},
+    )
+    assert res.status_code == 400

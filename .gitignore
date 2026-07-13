@@ -44,3 +44,4 @@ dev.sh
 # TTF-шрифты для PDF-генерации (dev: системные Arial, prod: apt fonts-dejavu-core).
 # Не коммитятся: проприетарные (Arial) или ставятся через пакетный менеджер (DejaVu).
 app/assets/fonts/*.ttf
+artifacts/

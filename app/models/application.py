@@ -10,6 +10,7 @@ from sqlalchemy.types import Uuid
 from app.db import Base
 
 if TYPE_CHECKING:
+    from app.models.artifact import Artifact
     from app.models.interview import Interview
 
 
@@ -88,3 +89,6 @@ class Application(Base):
     )
 
     interviews: Mapped[list["Interview"]] = relationship(back_populates="application")
+    artifacts: Mapped[list["Artifact"]] = relationship(
+        back_populates="application", cascade="all, delete-orphan"
+    )

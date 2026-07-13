@@ -49,10 +49,10 @@ async def test_create_cv_variant_roundtrip(session):
 
 @pytest.mark.asyncio
 async def test_all_tables_creatable(session):
-    """Все 10 таблиц создаются и принимают данные (кросс-БД типы валидны)."""
+    """Все 11 таблиц создаются и принимают данные (кросс-БД типы валидны)."""
     assert set(Base.metadata.tables) == {
         "master_cv", "cv_variant", "short_link", "link_hit", "project",
-        "application", "interview", "config_text",
+        "application", "interview", "artifact", "config_text",
         "chat_session", "chat_message",
     }
 
