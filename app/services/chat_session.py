@@ -8,11 +8,11 @@ import re
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import ChatMessage, ChatSession
+from app.models import ChatMessage, ChatSession, LinkHit
 
 # TTL сессий в часах (по умолчанию 24).
 CHAT_TTL_HOURS = 24
@@ -116,9 +116,37 @@ async def load_context_messages(
 
 
 async def cleanup_old_sessions(session: AsyncSession) -> int:
-    """Удаляет сессии старше CHAT_TTL_HOURS. Возвращает кол-во удалённых."""
+    """Удаляет сессии старше CHAT_TTL_HOURS. Возвращает кол-во удалённых.
+
+    Сначала обнуляет session_id в link_hit (FK без ON DELETE SET NULL),
+    чтобы избежать ForeignKeyViolation при удалении сессии с кликами.
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(hours=CHAT_TTL_HOURS)
+
+    # 1. Найти ID сессий к удалению
+    old_session_ids = [
+        row[0]
+        for row in (
+            await session.execute(
+                select(ChatSession.id).where(ChatSession.last_active_at < cutoff)
+            )
+        ).all()
+    ]
+    if not old_session_ids:
+        return 0
+
+    # 2. Обнулить ссылки в link_hit (сохраняем аналитику кликов)
+    await session.execute(
+        update(LinkHit)
+        .where(LinkHit.session_id.in_(old_session_ids))
+        .values(session_id=None)
+    )
+
+    # 3. Удалить сообщения и сессии
+    await session.execute(
+        delete(ChatMessage).where(ChatMessage.session_id.in_(old_session_ids))
+    )
     result = await session.execute(
-        delete(ChatSession).where(ChatSession.last_active_at < cutoff)
+        delete(ChatSession).where(ChatSession.id.in_(old_session_ids))
     )
     return result.rowcount or 0
