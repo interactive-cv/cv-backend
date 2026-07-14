@@ -59,6 +59,7 @@ from app.schemas.settings import (
 )
 from app.services.config_text import get_all_config, get_config_value, set_config_value
 from app.services.cv_parser import parse_master_cv
+from app.services.spec_extractor import extract_spec
 
 # Prefix /api/admin/ чтобы не конфликтовать с фронтенд-маршрутом /admin (Next.js).
 # nginx: /api/admin/ → fastapi, /admin → nextjs (страница).
@@ -159,45 +160,52 @@ async def _count_clicks(session: AsyncSession, code: str | None) -> tuple[int, i
 
 
 @router.post("/applications/upload-spec")
-async def upload_spec_pdf(
-    file: UploadFile = File(...),
+async def upload_spec_files(
+    files: list[UploadFile] = File(...),
 ) -> dict:
-    """Загрузка ТЗ в PDF → извлечение текста через pypdf.
+    """Загрузка файлов ТЗ (PDF и/или DOCX) → извлечение текста.
 
-    Принимает PDF-файл, парсит его в текст, возвращает извлечённый текст.
+    Принимает один или несколько файлов, парсит каждый, объединяет текст.
     Текст НЕ сохраняется в БД — фронтенд показывает его для предпросмотра/правки,
     затем передаёт в generate/create как spec_text.
+
+    Поддержка:
+    - PDF (pypdf) — текст по страницам
+    - DOCX (python-docx) — параграфы, заголовки, таблицы (→ markdown), позиции картинок
     """
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise AppError("bad_request", "Только PDF-файлы", 400)
+    if not files:
+        raise AppError("bad_request", "Не передано файлов", 400)
 
-    content = await file.read()
-    if not content:
-        raise AppError("bad_request", "Пустой файл", 400)
+    all_texts: list[str] = []
+    processed_files: list[dict] = []
+    errors: list[str] = []
 
-    # pypdf — чистый Python, без системных зависимостей.
-    import io
+    for file in files:
+        content = await file.read()
+        try:
+            text, elements, file_type = extract_spec(file.filename or "", content)
+            all_texts.append(f"=== {file.filename} ({file_type}) ===\n{text}")
+            processed_files.append(
+                {"filename": file.filename, "type": file_type, "elements": elements}
+            )
+        except ValueError as e:
+            errors.append(str(e))
 
-    from pypdf import PdfReader
-
-    try:
-        reader = PdfReader(io.BytesIO(content))
-        pages_text = []
-        for page in reader.pages:
-            text = page.extract_text() or ""
-            pages_text.append(text.strip())
-        spec_text = "\n\n".join(t for t in pages_text if t)
-    except Exception as e:
-        raise AppError("bad_request", f"Не удалось распарсить PDF: {e}", 400)
-
-    if not spec_text.strip():
+    if not all_texts:
         raise AppError(
             "bad_request",
-            "PDF не содержит извлекаемого текста (возможно, сканы без OCR)",
+            f"Не удалось извлечь текст ни из одного файла: {'; '.join(errors)}",
             400,
         )
 
-    return {"spec_text": spec_text, "pages": len(reader.pages), "filename": file.filename}
+    spec_text = "\n\n---\n\n".join(all_texts)
+
+    return {
+        "spec_text": spec_text,
+        "files": processed_files,
+        "errors": errors,
+        "total_chars": len(spec_text),
+    }
 
 
 @router.post("/applications/generate")
