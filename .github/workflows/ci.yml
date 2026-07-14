@@ -39,3 +39,8 @@ jobs:
       - run: pytest -m "not e2e"
       # Smoke миграций на реальной PG (гарантирует, что схема валидна).
       - run: alembic upgrade head
+      # Warning: если изменён seed_defaults.py — проверить drift промптов после merge.
+      - name: Check seed_defaults.py changes
+        run: |
+          git diff --name-only HEAD~1 HEAD | grep -q 'seed_defaults.py' && \
+            echo "::warning::seed_defaults.py изменён — после merge проверь drift промптов: python scripts/check_prompt_drift.py" || true
