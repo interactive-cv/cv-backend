@@ -1,45 +1,82 @@
-name: deploy to prod
+name: deploy backend to prod
 
-# Деплой на VPS при merge feature-ветки в master.
-# Требует Secrets: DEPLOY_SSH_KEY (приватный ключ), DEPLOY_HOST, DEPLOY_USER.
+# Автодеплой при merge feature-ветки в master.
+# Merge в master = осознанный деплой (review пройден, CI зелёный).
+#
+# Требует Secrets (Settings → Secrets and variables → Actions):
+#   DEPLOY_SSH_KEY    — приватный SSH-ключ для доступа к VPS
+#   DEPLOY_HOST       — IP-адрес VPS (91.132.56.149)
+#   DEPLOY_USER       — SSH-пользователь на VPS (deploy)
+#   PERSONAL_ICON_B64 — base64 личной иконки (монашеская), подменяет app/icon.png
+#
+# Механизм: rsync из runner → VPS (как deploy.sh), затем rebuild + migrate.
+# .env на проде НЕ перезаписывается (содержит реальные секреты).
+
 on:
   push:
     branches: [master]
+  # Ручной запуск для дебага/повтора упавшего деплоя.
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to VPS via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Checkout cv-backend
+        uses: actions/checkout@v4
+
+      - name: Checkout cv-frontend (соседний репо для пересборки nextjs)
+        uses: actions/checkout@v4
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
+          repository: interactive-cv/cv-frontend
+          path: cv-frontend-checkout
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Install personal icon (base64 → icon.png)
+        if: ${{ env.PERSONAL_ICON_B64 != '' }}
+        env:
+          PERSONAL_ICON_B64: ${{ secrets.PERSONAL_ICON_B64 }}
+        run: |
+          if [ -n "$PERSONAL_ICON_B64" ]; then
+            echo "$PERSONAL_ICON_B64" | base64 -d > cv-frontend-checkout/app/icon.png
+            echo "✓ Личная иконка установлена"
+          else
+            echo "— PERSONAL_ICON_B64 не задан, остаётся open-source default"
+          fi
+
+      - name: rsync cv-backend → VPS
+        run: |
+          rsync -az --delete \
+            --exclude='.env' --exclude='.venv' --exclude='.git' \
+            --exclude='__pycache__' --exclude='*.egg-info' \
+            --exclude='.pytest_cache' --exclude='.ruff_cache' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/home/deploy/libera_cv/cv-backend/
+
+      - name: rsync cv-frontend → VPS
+        run: |
+          rsync -az --delete \
+            --exclude='node_modules' --exclude='.next' --exclude='.git' --exclude='.cache' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            cv-frontend-checkout/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/home/deploy/libera_cv/cv-frontend/
+
+      - name: Rebuild + migrate on VPS
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} '
             set -e
-            cd /home/deploy
-            # Оба репо лежат рядом (compose ссылается на ../cv-frontend).
-            echo "=== pull cv-backend ==="
-            if [ -d cv-backend ]; then
-              cd cv-backend && git pull --ff-only && cd ..
-            else
-              git clone git@github.com:${{ github.repository }}.git cv-backend
-            fi
-
-            echo "=== pull cv-frontend ==="
-            if [ -d cv-frontend ]; then
-              cd cv-frontend && git pull --ff-only && cd ..
-            else
-              git clone git@github.com:ВЫ_ЗАПОЛНИТЕ_ИМЯ/cv-frontend.git cv-frontend
-            fi
-
-            echo "=== rebuild + restart (libera_cv) ==="
-            cd cv-backend
+            cd /home/deploy/libera_cv/cv-backend
             docker compose -f docker-compose.prod.yml up -d --build
-
-            echo "=== migrations + seed ==="
             docker compose -f docker-compose.prod.yml exec -T fastapi alembic upgrade head
             docker compose -f docker-compose.prod.yml exec -T fastapi python -m app.seed
+          '
 
-            echo "=== deployed ==="
+      - name: Smoke test
+        run: |
+          sleep 5
+          curl -sf https://cv.libera.pro/api/health | grep -q '"ok"' && echo "✅ деплой завершён" || (echo "❌ smoke failed" && exit 1)
