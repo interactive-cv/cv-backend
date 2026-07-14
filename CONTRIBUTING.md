@@ -14,20 +14,24 @@
 
 ### Требования
 
-- Python 3.11+
-- Node.js 18+ (для фронтенда)
-- PostgreSQL 14+ (для прода/dev) или SQLite (для тестов)
+- Python 3.12+
+- Node.js 22+ (для фронтенда)
+- PostgreSQL 16+ (для прода/dev) или SQLite (для тестов)
 
 ### Backend
 
 ```bash
 cd cv-backend
-python -m venv .venv && source .venv/bin/activate
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
 # Настройте .env (см. .env.example)
 cp .env.example .env
 # Отредактируйте: DATABASE_URL, ADMIN_TOKEN, SECRET_KEY, ZAI_API_KEY
+
+# Контент — скопируйте примеры и отредактируйте под себя
+cp seed_data/master_cv.example.md seed_data/master_cv.md
+cp seed_data/projects.example.json seed_data/projects.json
 
 # Миграции + seed (мастер-CV, проекты, промпты)
 alembic upgrade head
@@ -37,6 +41,8 @@ python -m app.seed
 uvicorn app.main:app --reload --port 8000
 ```
 
+> **Подробное руководство по разворачиванию и деплою:** [QUICKSTART.md](QUICKSTART.md)
+
 ### Frontend
 
 ```bash
@@ -44,7 +50,7 @@ cd cv-frontend
 npm install
 
 # Настройте .env.local
-cp .env.local.example .env.local
+cp .env.example .env.local
 # NEXT_PUBLIC_API_URL=http://localhost:8000
 # NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
