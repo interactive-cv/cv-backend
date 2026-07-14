@@ -416,3 +416,79 @@ async def test_artifact_size_limit(client, session, monkeypatch):
         files={"file": ("big.apk", b"X" * 100, "application/octet-stream")},
     )
     assert res.status_code == 400
+
+
+# ===== Тесты multi-file spec upload =====
+
+
+@pytest.mark.asyncio
+async def test_upload_spec_docx(client, session):
+    """Загрузка DOCX — извлечение текста + таблицы."""
+    from docx import Document
+
+    doc = Document()
+    doc.add_heading("ТЗ на приложение", level=1)
+    doc.add_paragraph("Нужно сделать доставку еды.")
+    table = doc.add_table(rows=2, cols=2)
+    table.cell(0, 0).text = "Функция"
+    table.cell(0, 1).text = "Описание"
+    table.cell(1, 0).text = "Корзина"
+    table.cell(1, 1).text = "Добавление товаров"
+
+    import io
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    docx_bytes = buf.getvalue()
+
+    res = await client.post(
+        "/api/admin/applications/upload-spec",
+        headers=VALID,
+        files={"files": ("tz.docx", docx_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "доставку еды" in data["spec_text"]
+    assert "Корзина" in data["spec_text"]  # таблица извлечена
+    assert len(data["files"]) == 1
+    assert data["files"][0]["type"] == "docx"
+
+
+@pytest.mark.asyncio
+async def test_upload_spec_multiple_files(client, session):
+    """Загрузка нескольких файлов — тексты объединяются."""
+    # DOCX
+    from docx import Document
+    import io
+
+    doc = Document()
+    doc.add_paragraph("DOCX содержимое")
+    buf = io.BytesIO()
+    doc.save(buf)
+    docx_bytes = buf.getvalue()
+
+    res = await client.post(
+        "/api/admin/applications/upload-spec",
+        headers=VALID,
+        files=[
+            ("files", ("doc1.docx", docx_bytes, "application/octet-stream")),
+            ("files", ("doc2.docx", docx_bytes, "application/octet-stream")),
+        ],
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert "doc1.docx" in data["spec_text"]
+    assert "doc2.docx" in data["spec_text"]
+    assert "DOCX содержимое" in data["spec_text"]
+    assert len(data["files"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_upload_spec_rejects_unsupported(client, session):
+    """Неподдерживаемый формат — 400."""
+    res = await client.post(
+        "/api/admin/applications/upload-spec",
+        headers=VALID,
+        files={"files": ("file.txt", b"hello", "text/plain")},
+    )
+    assert res.status_code == 400
