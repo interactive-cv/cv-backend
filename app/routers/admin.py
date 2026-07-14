@@ -2,6 +2,7 @@ import secrets
 import string
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import Response
@@ -21,6 +22,7 @@ from app.models import (
     Application,
     ApplicationKind,
     ApplicationStatus,
+    Artifact,
     ChatMessage,
     ChatSession,
     ConfigText,
@@ -45,6 +47,7 @@ from app.schemas.interview import (
     InterviewOut,
     InterviewUpdateIn,
 )
+from app.schemas.artifact import ArtifactOut
 from app.schemas.link import LinkCreateIn
 from app.schemas.settings import (
     ConfigTextOut,
@@ -355,6 +358,14 @@ async def get_application(
             .order_by(Interview.scheduled_at)
         )
     ).scalars().all()
+    # Подгружаем артефакты для этого отклика
+    artifacts = (
+        await session.execute(
+            select(Artifact)
+            .where(Artifact.application_id == a.id)
+            .order_by(Artifact.created_at)
+        )
+    ).scalars().all()
     return ApplicationDetailOut(
         id=a.id,
         company=a.company,
@@ -388,6 +399,20 @@ async def get_application(
                 created_at=i.created_at,
             )
             for i in interviews
+        ],
+        artifacts=[
+            ArtifactOut(
+                id=str(art.id),
+                application_id=str(art.application_id),
+                code=art.code,
+                filename=art.filename,
+                mime_type=art.mime_type,
+                size_bytes=art.size_bytes,
+                download_count=art.download_count,
+                download_url=f"{settings.site_url}/dl/{art.code}",
+                created_at=art.created_at,
+            )
+            for art in artifacts
         ],
         created_at=a.created_at,
         published_at=a.published_at,
@@ -765,6 +790,113 @@ async def get_upcoming_interviews(
         )
         for i, a in rows
     ]
+
+
+# ===== Artifacts: файлы конкурсных откликов (APK, видео и т.д.) =====
+
+# Алфавит кодов артефактов: буквы + цифры (6 символов).
+_ARTIFACT_ALPHABET = string.ascii_uppercase + string.digits
+_ARTIFACT_CODE_LEN = 6
+
+
+def _generate_artifact_code() -> str:
+    return "".join(secrets.choice(_ARTIFACT_ALPHABET) for _ in range(_ARTIFACT_CODE_LEN))
+
+
+def _sanitize_filename(name: str) -> str:
+    """Берём только basename, убираем path traversal."""
+    return Path(name).name
+
+
+@router.post("/applications/{app_id}/artifacts", status_code=201)
+async def upload_artifact(
+    app_id: str,
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
+) -> ArtifactOut:
+    """Загрузить файл-артефакт для отклика (APK, видео, и т.д.).
+
+    Возвращает публичную ссылку /dl/{code} для скачивания.
+    Лимит размера: settings.artifact_max_size_mb.
+    """
+    a = await session.get(Application, uuid.UUID(app_id))
+    if not a:
+        raise AppError("not_found", "Отклик не найден", 404)
+
+    # Санитизация имени
+    filename = _sanitize_filename(file.filename or "artifact")
+    if not filename:
+        filename = "artifact"
+
+    # Читаем содержимое и проверяем размер
+    content = await file.read()
+    max_bytes = settings.artifact_max_size_mb * 1024 * 1024
+    if len(content) > max_bytes:
+        raise AppError(
+            "bad_request",
+            f"Файл слишком большой: {len(content)} байт. Максимум {settings.artifact_max_size_mb} MB",
+            400,
+        )
+
+    # Генерируем уникальный код (с retry при коллизии)
+    for _ in range(10):
+        code = _generate_artifact_code()
+        existing = (
+            await session.execute(select(Artifact).where(Artifact.code == code))
+        ).scalar_one_or_none()
+        if not existing:
+            break
+    else:
+        raise AppError("internal", "Не удалось сгенерировать уникальный код", 500)
+
+    # Сохраняем файл на диск
+    app_dir = Path("artifacts") / str(a.id)
+    app_dir.mkdir(parents=True, exist_ok=True)
+    stored_filename = f"{code}_{filename}"
+    stored_path = app_dir / stored_filename
+    stored_path.write_bytes(content)
+
+    artifact = Artifact(
+        application_id=a.id,
+        code=code,
+        filename=filename,
+        stored_path=str(stored_path),
+        mime_type=file.content_type,
+        size_bytes=len(content),
+    )
+    session.add(artifact)
+    await session.commit()
+    await session.refresh(artifact)
+
+    return ArtifactOut(
+        id=str(artifact.id),
+        application_id=str(artifact.application_id),
+        code=artifact.code,
+        filename=artifact.filename,
+        mime_type=artifact.mime_type,
+        size_bytes=artifact.size_bytes,
+        download_count=artifact.download_count,
+        download_url=f"{settings.site_url}/dl/{artifact.code}",
+        created_at=artifact.created_at,
+    )
+
+
+@router.delete("/artifacts/{artifact_id}", status_code=204)
+async def delete_artifact(
+    artifact_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Удалить артефакт (файл + запись в БД)."""
+    art = await session.get(Artifact, uuid.UUID(artifact_id))
+    if not art:
+        raise AppError("not_found", "Артефакт не найден", 404)
+    # Удаляем файл с диска
+    try:
+        Path(art.stored_path).unlink(missing_ok=True)
+    except Exception:
+        pass  # файл уже удалён — не критично
+    await session.delete(art)
+    await session.commit()
 
 
 # ===== Settings: редактируемые тексты (мастер-CV, README, промпты) =====

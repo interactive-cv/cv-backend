@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.errors import AppError, app_error_handler
-from app.routers import admin, chat, cv, health, links, projects
+from app.routers import admin, chat, cv, downloads, health, links, projects
 
 
 def create_app() -> FastAPI:
@@ -19,6 +19,7 @@ def create_app() -> FastAPI:
     app.include_router(cv.router)
     app.include_router(projects.router)
     app.include_router(links.router)
+    app.include_router(downloads.router)
     app.include_router(chat.router)
     app.include_router(admin.router)
     return app

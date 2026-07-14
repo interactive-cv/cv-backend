@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     zai_model: str = "glm-5.2"
     chat_rate_per_hour: int = 50
     chat_rate_per_day: int = 300
+    artifact_max_size_mb: int = 100
 
     @property
     def cors_origins(self) -> list[str]:

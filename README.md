@@ -6,6 +6,8 @@
 
 Сайт совмещает классическое резюме, интерактивный граф проектов/технологий и **живой AI-чат, который отвечает рекрутёру по фактам из CV** — это та «фишка», которая выделяет кандидата среди сотен стандартных резюме.
 
+> **🚀 Хотите развернуть свой сайт?** Полное руководство — [QUICKSTART.md](QUICKSTART.md): локальная разработка, production-деплой, конфигурация, промпты.
+
 ## Технологии
 
 - **Python 3.12, FastAPI, Pydantic v2** — асинхронное REST API, типобезопасные схемы
@@ -13,7 +15,7 @@
 - **PostgreSQL 16** — основное хранилище
 - **httpx** — стриминговый клиент к LLM (Server-Sent Events) в паттерне RAG
 - **AI/LLM** — интеграция языковых моделей в продукт: RAG без векторной БД, prompt engineering с защитой от галлюцинаций, стриминг ответов (SSE)
-- **pytest, pytest-asyncio, respx** — 64 unit-теста + 3 e2e-теста RAG против реальной модели
+- **pytest, pytest-asyncio, respx** — 67 unit-тестов + 3 e2e-теста RAG против реальной модели
 
 ## Что умеет
 
@@ -31,6 +33,9 @@
 | `GET /admin/applications/{id}/pdf` | **Экспорт CV в PDF** (fpdf2, Unicode, кириллица) |
 | `GET /admin/applications/{id}/visitors` | Уникальные посетители CV (имена, кол-во просмотров, был ли чат) |
 | `POST /admin/applications/{id}/publish` | Публикация: короткая ссылка, status=active (переиспользование при републикации) |
+| `POST /admin/applications/{id}/artifacts` | **Загрузка артефакта** (APK, видео, архивы — до 100 MB) → публичная ссылка `/dl/{code}` |
+| `DELETE /admin/artifacts/{id}` | Удаление артефакта (файл + запись) |
+| `GET /dl/{code}` | **Публичное скачивание артефакта** (без auth, rate-limited, 410 если отклик архивирован) |
 | `POST/PATCH/DELETE /admin/applications/{id}/interviews` | **CRUD собеседований**: дата/время, заметки до/после |
 | `GET /admin/upcoming` | Ближайшие собеседования (дашборд, `scheduled_at >= now()`, limit 10) |
 | `GET/PATCH /admin/settings` | **Настройки в БД**: мастер-CV, README, промпты (редактируемые через админку) |
@@ -68,7 +73,7 @@ app/
 ├── services/    бизнес-логика (резолв ссылок, парсер CV → структуру)
 ├── llm/         промпт-инжиниринг и стриминговый клиент Z.ai
 └── errors.py    единый формат ошибок {error, message, request_id}
-tests/           64 теста (unit на in-memory SQLite + e2e против glm-5.2)
+tests/           67 тестов (unit на in-memory SQLite + e2e против glm-5.2)
 ```
 
 Тесты запускаются на in-memory SQLite (кросс-БД типы через `TypeDecorator`), а в проде на PostgreSQL те же модели транслируются в нативные `jsonb`/`uuid` — без изменения кода.
