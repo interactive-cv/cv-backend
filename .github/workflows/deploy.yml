@@ -60,6 +60,11 @@ jobs:
             --exclude='.env' --exclude='.venv' --exclude='.git' \
             --exclude='__pycache__' --exclude='*.egg-info' \
             --exclude='.pytest_cache' --exclude='.ruff_cache' \
+            --exclude='artifacts/' \
+            --exclude='DEPLOY_RULES.md' \
+            --exclude='seed_data/master_cv.md' \
+            --exclude='seed_data/projects.json' \
+            --exclude='seed_data/readme.md' \
             -e "ssh -i ~/.ssh/deploy_key" \
             ./ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/home/deploy/libera_cv/cv-backend/
 
