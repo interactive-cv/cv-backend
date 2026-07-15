@@ -23,13 +23,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout cv-backend
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Checkout cv-frontend (соседний репо для пересборки nextjs)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: interactive-cv/cv-frontend
           path: cv-frontend-checkout
+
+      # public/ может быть пустой в git — Dockerfile nextjs требует её существования.
+      - name: Ensure public/ exists in frontend checkout
+        run: mkdir -p cv-frontend-checkout/public
 
       - name: Setup SSH
         run: |
