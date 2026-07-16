@@ -492,3 +492,56 @@ async def test_upload_spec_rejects_unsupported(client, session):
         files={"files": ("file.txt", b"hello", "text/plain")},
     )
     assert res.status_code == 400
+
+
+# ===== Тесты extra_instruction =====
+
+
+@pytest.mark.asyncio
+async def test_extra_instruction_saved_and_returned(client, session):
+    """extra_instruction сохраняется в Application и возвращается в detail."""
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "Test", "role": "Dev", "vacancy_text": "v",
+            "cv_markdown": "# m", "cover_letter": "", "slug": "instr-1",
+            "extra_instruction": "сделать акцент на backend",
+        },
+    )
+    assert res.status_code == 201
+    app_id = res.json()["id"]
+
+    detail = (await client.get(f"/api/admin/applications/{app_id}", headers=VALID)).json()
+    assert detail["extra_instruction"] == "сделать акцент на backend"
+
+
+@pytest.mark.asyncio
+async def test_instructions_endpoint(client, session):
+    """GET /instructions — отдаёт только отклики с extra_instruction."""
+    # без инструкции — не должен попасть в список
+    await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "NoInstr", "role": "Dev", "vacancy_text": "v",
+            "cv_markdown": "# m", "cover_letter": "", "slug": "no-instr",
+        },
+    )
+    # с инструкцией
+    await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "WithInstr", "role": "Dev", "vacancy_text": "v",
+            "cv_markdown": "# m", "cover_letter": "", "slug": "with-instr",
+            "extra_instruction": "убрать 1С из CV",
+        },
+    )
+
+    res = await client.get("/api/admin/instructions", headers=VALID)
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data) >= 1
+    assert all(d["extra_instruction"] for d in data)
+    assert any(d["extra_instruction"] == "убрать 1С из CV" for d in data)
