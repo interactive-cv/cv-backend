@@ -330,6 +330,7 @@ async def create_application(
         spec_text=body.spec_text,
         estimate=body.estimate,
         generated_prompt=body.generated_prompt,
+        extra_instruction=body.extra_instruction,
         published_at=(
             datetime.now(timezone.utc) if body.status == "active" else None
         ),
@@ -397,6 +398,7 @@ async def get_application(
         spec_text=a.spec_text,
         estimate=a.estimate,
         generated_prompt=a.generated_prompt,
+        extra_instruction=a.extra_instruction,
         interviews=[
             InterviewOut(
                 id=str(i.id),
@@ -905,6 +907,45 @@ async def delete_artifact(
         pass  # файл уже удалён — не критично
     await session.delete(art)
     await session.commit()
+
+
+# ===== Instructions: лента доп. инструкций для переиспользования =====
+
+
+@router.get("/instructions")
+async def list_instructions(
+    session: AsyncSession = Depends(get_session),
+) -> list[dict]:
+    """Лента доп. инструкций LLM из прошлых откликов (для переиспользования).
+
+    Возвращает отклики где extra_instruction IS NOT NULL,
+    сортировка по created_at DESC, limit 20.
+    """
+    rows = (
+        await session.execute(
+            select(
+                Application.id,
+                Application.role,
+                Application.company,
+                Application.extra_instruction,
+                Application.created_at,
+            )
+            .where(Application.extra_instruction.isnot(None))
+            .order_by(Application.created_at.desc())
+            .limit(20)
+        )
+    ).all()
+    return [
+        {
+            "id": str(r.id),
+            "application_id": str(r.id),
+            "role": r.role,
+            "company": r.company,
+            "extra_instruction": r.extra_instruction,
+            "created_at": r.created_at.isoformat(),
+        }
+        for r in rows
+    ]
 
 
 # ===== Settings: редактируемые тексты (мастер-CV, README, промпты) =====

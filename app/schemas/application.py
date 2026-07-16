@@ -52,6 +52,7 @@ class ApplicationCreateIn(BaseModel):
     spec_text: str | None = None
     estimate: str | None = None
     generated_prompt: str | None = None
+    extra_instruction: str | None = None
 
 
 class ApplicationUpdateIn(BaseModel):
@@ -106,6 +107,7 @@ class ApplicationDetailOut(ApplicationOut):
     spec_text: str | None = None
     estimate: str | None = None
     generated_prompt: str | None = None
+    extra_instruction: str | None = None
     interviews: list[InterviewOut] = []
     artifacts: list[ArtifactOut] = []
     last_click_at: datetime | None = None

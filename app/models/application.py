@@ -82,6 +82,9 @@ class Application(Base):
     # Snapshot отрендеренного промпта, который породил CV/cover letter.
     # Для воспроизводимости и отладки. Не показывается кандидатам/HR.
     generated_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Дополнительная инструкция владельца к LLM при генерации.
+    # Сохраняется для переиспользования в будущих откликах.
+    extra_instruction: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     published_at: Mapped[Optional[datetime]] = mapped_column(
