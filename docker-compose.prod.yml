@@ -37,6 +37,8 @@ services:
     container_name: libera_cv_postgres
     restart: always
     env_file: .env
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - libera_cv_pg_data:/var/lib/postgresql/data
     networks: [internal]
