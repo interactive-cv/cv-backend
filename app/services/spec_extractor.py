@@ -19,6 +19,16 @@ def detect_file_type(filename: str) -> FileType | None:
     return None
 
 
+def _sanitize_text(text: str) -> str:
+    """Убирает суррогатные символы и проблемный unicode из извлечённого текста.
+
+    pypdf иногда выдаёт broken unicode (суррогатные пары, control characters),
+    которые вызывают UnicodeEncodeError при JSON-сериализации (Pydantic strict).
+    """
+    # Кодируем в utf-8 с errors='replace' — заменяет суррогаты на U+FFFD
+    return text.encode("utf-8", errors="replace").decode("utf-8")
+
+
 def extract_pdf(content: bytes) -> tuple[str, int]:
     """Извлекает текст из PDF. Возвращает (text, pages)."""
     from pypdf import PdfReader
@@ -27,8 +37,10 @@ def extract_pdf(content: bytes) -> tuple[str, int]:
     pages_text = []
     for page in reader.pages:
         text = page.extract_text() or ""
-        pages_text.append(text.strip())
-    return "\n\n".join(t for t in pages_text if t), len(reader.pages)
+        text = _sanitize_text(text.strip())
+        if text:
+            pages_text.append(text)
+    return "\n\n".join(pages_text), len(reader.pages)
 
 
 def extract_docx(content: bytes) -> tuple[str, int]:
@@ -86,7 +98,7 @@ def extract_docx(content: bytes) -> tuple[str, int]:
                 if md:
                     elements.append(md)
 
-    text = "\n".join(elements)
+    text = _sanitize_text("\n".join(elements))
     return text, element_count
 
 
