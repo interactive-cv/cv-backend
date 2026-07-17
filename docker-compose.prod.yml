@@ -18,8 +18,8 @@ services:
     environment:
       - TZ=Europe/Moscow
       - LETSENCRYPT=true
-      - LE_EMAIL=you@example.com          # ← ваш email для Let's Encrypt
-      - LE_FQDN=cv.example.com            # ← ваш домен
+      - LE_EMAIL=${LE_EMAIL:-you@example.com}
+      - LE_FQDN=${LE_FQDN:-cv.example.com}
       - SSL_CERT=cv-le-crt.pem
       - SSL_KEY=cv-le-key.pem
       - SSL_CHAIN_CERT=cv-le-chain-crt.pem
