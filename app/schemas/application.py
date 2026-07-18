@@ -31,6 +31,18 @@ class GenerateOut(BaseModel):
     prompt: str = ""
 
 
+class EditChatIn(BaseModel):
+    """Итеративная правка отклика через чат с LLM (стриминг)."""
+
+    cv_markdown: str
+    cover_letter: str
+    instruction: str
+    kind: Literal["vacancy", "freelance", "contest"] = "vacancy"
+    vacancy_text: str = ""
+    history: list[dict] = []
+    temperature: float = 0.6
+
+
 class ApplicationCreateIn(BaseModel):
     """Создание отклика (после генерации/редактирования)."""
 
