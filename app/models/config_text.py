@@ -43,4 +43,5 @@ CONFIG_KEYS = [
     "prompt_generate_freelance",
     "prompt_generate_contest",
     "prompt_cv_edit",
+    "prompt_response_edit",
 ]

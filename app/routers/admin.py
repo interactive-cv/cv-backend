@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,6 +38,7 @@ from app.schemas.application import (
     ApplicationDetailOut,
     ApplicationOut,
     ApplicationUpdateIn,
+    EditChatIn,
     GenerateIn,
     GenerateOut,
 )
@@ -230,6 +231,59 @@ async def generate_cv(
         chunks.append(token)
     cv_md, cover_md, estimate = parse_generate_response("".join(chunks))
     return GenerateOut(cv_markdown=cv_md, cover_letter=cover_md, estimate=estimate, prompt=prompt)
+
+
+@router.post("/applications/edit-chat")
+async def edit_chat(
+    body: EditChatIn, session: AsyncSession = Depends(get_session)
+) -> StreamingResponse:
+    """Итеративная правка CV и cover letter через чат с LLM (стриминг).
+
+    Принимает текущее состояние текстов + инструкцию + историю диалога.
+    Стримит обновлённые CV и cover letter в формате ===CV===...===COVER===...===END===.
+    Фронтенд парсит поток и обновляет редакторы в реальном времени.
+    Температура ниже генерации (0.6) — точные правки без фантазии.
+    """
+    from app.seed_defaults import DEFAULT_PROMPT_RESPONSE_EDIT
+
+    template = (
+        await get_config_value(session, "prompt_response_edit")
+        or DEFAULT_PROMPT_RESPONSE_EDIT
+    )
+
+    # Формируем историю диалога (короткие реплики, без полного markdown)
+    dialog_history = ""
+    if body.history:
+        dialog_parts = []
+        for msg in body.history[-10:]:  # последние 10 сообщений
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "user":
+                dialog_parts.append(f"Предыдущая инструкция: {content}")
+            else:
+                dialog_parts.append(f"Результат: {content}")
+        dialog_history = "ПРЕДЫДУЩИЕ ИНСТРУКЦИИ В ДИАЛОГЕ:\n---\n" + "\n".join(dialog_parts) + "\n---"
+
+    prompt = template.format(
+        current_cv=body.cv_markdown,
+        current_cover=body.cover_letter,
+        vacancy_text=body.vacancy_text or "(не указано)",
+        instruction=body.instruction,
+        dialog_history=dialog_history,
+    )
+
+    async def gen():
+        try:
+            async for token in stream_chat(
+                [{"role": "user", "content": "Внеси правки согласно инструкции"}],
+                prompt,
+                temperature=body.temperature,
+            ):
+                yield token
+        except Exception:
+            yield "\n\n[Ошибка при обращении к LLM. Попробуйте ещё раз.]"
+
+    return StreamingResponse(gen(), media_type="text/plain")
 
 
 @router.get("/applications")
@@ -976,6 +1030,9 @@ async def get_settings(
             rows.get("prompt_generate_contest"), "prompt_generate_contest"
         ),
         prompt_cv_edit=_config_row(rows.get("prompt_cv_edit"), "prompt_cv_edit"),
+        prompt_response_edit=_config_row(
+            rows.get("prompt_response_edit"), "prompt_response_edit"
+        ),
     )
 
 

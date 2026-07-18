@@ -45,3 +45,4 @@ dev.sh
 # Не коммитятся: проприетарные (Arial) или ставятся через пакетный менеджер (DejaVu).
 app/assets/fonts/*.ttf
 artifacts/
+.idea/
