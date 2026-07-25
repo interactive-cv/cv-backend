@@ -1,6 +1,6 @@
 import uuid
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Optional
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Interview(Base):
@@ -30,8 +30,8 @@ class Interview(Base):
         Uuid, ForeignKey("application.id"), nullable=False
     )
     scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    notes_before: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    notes_after: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notes_before: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes_after: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     application: Mapped["Application"] = relationship(back_populates="interviews")

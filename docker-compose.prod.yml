@@ -15,6 +15,8 @@ services:
     volumes:
       - libera_cv_le_ssl:/etc/nginx/ssl
       - ./nginx_ssl/conf/service_cv.conf:/etc/nginx/service_cv.conf
+      - ./nginx_ssl/conf/service_med.conf:/etc/nginx/service_med.conf
+      - /home/deploy/med/site:/usr/share/nginx/med:ro
     environment:
       - TZ=Europe/Moscow
       - LETSENCRYPT=true

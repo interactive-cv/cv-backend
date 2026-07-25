@@ -1,8 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.cv import CVVariantOut, MasterCVOut
 from app.schemas.chat import ChatRequest
+from app.schemas.cv import CVVariantOut, MasterCVOut
 
 
 def test_master_cv_out_excludes_secret_fields():
@@ -46,8 +46,9 @@ def test_chat_request_validates_message_length():
 
 
 def test_application_out_excludes_vacancy_text():
-    from app.schemas.application import ApplicationOut
     import uuid
+
+    from app.schemas.application import ApplicationOut
 
     payload = ApplicationOut(
         id=uuid.uuid4(),

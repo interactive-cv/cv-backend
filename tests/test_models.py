@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from sqlalchemy import select
 
@@ -13,7 +15,6 @@ from app.models import (
     Project,
     ShortLink,
 )
-from datetime import datetime, timezone, timedelta
 
 
 @pytest.mark.asyncio
@@ -70,7 +71,7 @@ async def test_all_tables_creatable(session):
 
     link = ShortLink(
         code="R8H", cv_variant_id=variant.id,
-        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        expires_at=datetime.now(UTC) + timedelta(days=7),
         max_hits=10, hit_count=0,
     )
     session.add(link)
@@ -110,14 +111,14 @@ async def test_create_application_roundtrip(session):
 
 @pytest.mark.asyncio
 async def test_create_interview_roundtrip(session):
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta
     # нужен Application (FK)
     app = Application(company="X", role="R", vacancy_text="v", slug="x-1", status=ApplicationStatus.draft)
     session.add(app)
     await session.commit()
     iv = Interview(
         application_id=app.id,
-        scheduled_at=datetime.now(timezone.utc) + timedelta(days=3),
+        scheduled_at=datetime.now(UTC) + timedelta(days=3),
         notes_before="Подготовить вопросы по Flutter",
         notes_after=None,
     )

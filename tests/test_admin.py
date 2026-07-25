@@ -458,8 +458,9 @@ async def test_upload_spec_docx(client, session):
 async def test_upload_spec_multiple_files(client, session):
     """Загрузка нескольких файлов — тексты объединяются."""
     # DOCX
-    from docx import Document
     import io
+
+    from docx import Document
 
     doc = Document()
     doc.add_paragraph("DOCX содержимое")

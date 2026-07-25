@@ -9,16 +9,16 @@ Create Date: 2026-07-11 12:00:00.000000
    если запись отсутствует (для уже развёрнутых инстансов, где seed
    не создаст новый ключ автоматически).
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 from sqlalchemy import text as sa_text
 
+from alembic import op
 
 revision: str = 'k1l2m3n4o5p6'
-down_revision: Union[str, Sequence[str], None] = 'j0k1l2m3n4o5'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'j0k1l2m3n4o5'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

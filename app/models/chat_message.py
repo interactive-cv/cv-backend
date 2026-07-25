@@ -1,6 +1,5 @@
 import uuid
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -8,12 +7,9 @@ from sqlalchemy.types import Uuid
 
 from app.db import Base
 
-if TYPE_CHECKING:
-    pass
-
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class ChatSession(Base):
@@ -26,9 +22,9 @@ class ChatSession(Base):
     __tablename__ = "chat_session"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    ip_hash: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    visitor_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    short_link_code: Mapped[Optional[str]] = mapped_column(
+    ip_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
+    visitor_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    short_link_code: Mapped[str | None] = mapped_column(
         Text, ForeignKey("short_link.code"), nullable=True
     )
     # Флаг: сессия принадлежит владельцу (админу). Устанавливается

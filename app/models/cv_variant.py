@@ -1,9 +1,10 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Text
+from sqlalchemy import DateTime, ForeignKey, Text
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
 
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class CVVariantStatus(str, Enum):

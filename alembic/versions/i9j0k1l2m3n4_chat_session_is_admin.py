@@ -7,16 +7,16 @@ Create Date: 2026-07-06 06:00:00.000000
 chat_session.is_admin — флаг владельца (админа). Устанавливается при
 наличии X-Admin-Token в запросе к /api/chat.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision: str = 'i9j0k1l2m3n4'
-down_revision: Union[str, Sequence[str], None] = 'h8i9j0k1l2m3'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'h8i9j0k1l2m3'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

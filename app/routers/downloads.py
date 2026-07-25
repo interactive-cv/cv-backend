@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_session
 from app.errors import AppError
-from app.models import ApplicationStatus, Artifact, Application
+from app.models import Application, ApplicationStatus, Artifact
 from app.ratelimit import check_resolve_rate
 from app.request_utils import client_ip
 
