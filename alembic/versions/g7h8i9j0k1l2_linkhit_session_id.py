@@ -7,16 +7,16 @@ Create Date: 2026-07-05 14:00:00.000000
 LinkHit.session_id — связь с chat_session для единого профиля посетителя.
 Nullable: старые клики не имеют session_id.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision: str = 'g7h8i9j0k1l2'
-down_revision: Union[str, Sequence[str], None] = 'f6g7h8i9j0k1'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'f6g7h8i9j0k1'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import re
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,7 +60,7 @@ async def get_or_create_session(
             ).scalar_one_or_none()
             if existing:
                 # Обновляем last_active и short_link_code если появился
-                existing.last_active_at = datetime.now(timezone.utc)
+                existing.last_active_at = datetime.now(UTC)
                 if short_link_code and not existing.short_link_code:
                     existing.short_link_code = short_link_code
                 await session.flush()
@@ -92,7 +92,7 @@ async def save_message(
         content=content,
     )
     session.add(msg)
-    chat_session.last_active_at = datetime.now(timezone.utc)
+    chat_session.last_active_at = datetime.now(UTC)
     await session.flush()
     return msg
 
@@ -121,7 +121,7 @@ async def cleanup_old_sessions(session: AsyncSession) -> int:
     Сначала обнуляет session_id в link_hit (FK без ON DELETE SET NULL),
     чтобы избежать ForeignKeyViolation при удалении сессии с кликами.
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=CHAT_TTL_HOURS)
+    cutoff = datetime.now(UTC) - timedelta(hours=CHAT_TTL_HOURS)
 
     # 1. Найти ID сессий к удалению
     old_session_ids = [

@@ -1,17 +1,17 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db import Base, JSONB
+from app.db import JSONB, Base
 
 if TYPE_CHECKING:
     from app.models.cv_variant import CVVariant
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class MasterCV(Base):

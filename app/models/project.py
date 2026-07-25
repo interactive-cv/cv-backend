@@ -1,11 +1,10 @@
 import uuid
-from typing import Optional
 
 from sqlalchemy import Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import Uuid
 
-from app.db import Base, JSONB
+from app.db import JSONB, Base
 
 
 class Project(Base):
@@ -17,7 +16,7 @@ class Project(Base):
     role: Mapped[str] = mapped_column(Text)
     tags: Mapped[list[str]] = mapped_column(JSONB, default=list)
     short_desc: Mapped[str] = mapped_column(Text)
-    long_desc: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    long_desc: Mapped[str | None] = mapped_column(Text, nullable=True)
     stack: Mapped[list[str]] = mapped_column(JSONB, default=list)
     metrics: Mapped[dict] = mapped_column(JSONB, default=dict)
     # Ссылки на проект: [{label: "GitHub", url: "..."}, {label: "Демо", url: "..."}]

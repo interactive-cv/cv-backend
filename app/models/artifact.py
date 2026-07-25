@@ -1,6 +1,6 @@
 import uuid
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Optional
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class Artifact(Base):
@@ -35,7 +35,7 @@ class Artifact(Base):
     filename: Mapped[str] = mapped_column(Text)
     # Путь на диске ("artifacts/{app_id}/{code}_{filename}")
     stored_path: Mapped[str] = mapped_column(Text)
-    mime_type: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(Text, nullable=True)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     # Аналитика скачиваний (атомарный инкремент, как hit_count у short_link)
     download_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

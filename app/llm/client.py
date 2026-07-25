@@ -25,17 +25,16 @@ async def stream_chat(
         "stream": True,
         "temperature": temperature,
     }
-    async with httpx.AsyncClient(timeout=120) as client:
-        async with client.stream(
-            "POST",
-            f"{settings.zai_api_base}/chat/completions",
-            headers=headers,
-            json=payload,
-        ) as resp:
-            resp.raise_for_status()
-            async for line in resp.aiter_lines():
-                if line.startswith("data: ") and line != "data: [DONE]":
-                    chunk = json.loads(line[6:])
-                    delta = chunk["choices"][0]["delta"].get("content")
-                    if delta:
-                        yield delta
+    async with httpx.AsyncClient(timeout=120) as client, client.stream(
+        "POST",
+        f"{settings.zai_api_base}/chat/completions",
+        headers=headers,
+        json=payload,
+    ) as resp:
+        resp.raise_for_status()
+        async for line in resp.aiter_lines():
+            if line.startswith("data: ") and line != "data: [DONE]":
+                chunk = json.loads(line[6:])
+                delta = chunk["choices"][0]["delta"].get("content")
+                if delta:
+                    yield delta

@@ -19,8 +19,8 @@ async def session() -> AsyncSession:
 @pytest.fixture
 async def client(session: AsyncSession):
     """FastAPI TestClient с переопределённой зависимостью get_session (in-memory SQLite)."""
-    from app.main import create_app
     from app.deps import get_session
+    from app.main import create_app
 
     app = create_app()
     app.dependency_overrides[get_session] = lambda: session

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -20,7 +20,7 @@ async def _make_link(session, *, expires_in=7, max_hits=None, hit_count=0):
     link = ShortLink(
         code="R8H",
         cv_variant_id=v.id,
-        expires_at=datetime.now(timezone.utc) + timedelta(days=expires_in),
+        expires_at=datetime.now(UTC) + timedelta(days=expires_in),
         max_hits=max_hits,
         hit_count=hit_count,
     )
@@ -68,8 +68,9 @@ async def test_resolve_increments_hit_count_and_logs_hit(client, session):
     await session.refresh(link)
     assert link.hit_count == 1  # инкремент
     # аналитика записана (ip_hash, не сырой IP)
-    from app.models import LinkHit
     from sqlalchemy import select
+
+    from app.models import LinkHit
 
     hits = (await session.execute(select(LinkHit))).scalars().all()
     assert len(hits) == 1

@@ -1,9 +1,10 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Integer, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, Text
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
 
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class ApplicationStatus(str, Enum):
@@ -40,15 +41,15 @@ class Application(Base):
     __tablename__ = "application"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    company: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    company: Mapped[str | None] = mapped_column(Text, nullable=True)
     role: Mapped[str] = mapped_column(Text)
     vacancy_text: Mapped[str] = mapped_column(Text)
-    cover_letter: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    cover_letter: Mapped[str | None] = mapped_column(Text, nullable=True)
     slug: Mapped[str] = mapped_column(Text, unique=True, index=True)
-    cv_variant_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    cv_variant_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("cv_variant.id"), nullable=True
     )
-    short_link_code: Mapped[Optional[str]] = mapped_column(
+    short_link_code: Mapped[str | None] = mapped_column(
         Text, ForeignKey("short_link.code"), nullable=True
     )
     status: Mapped[ApplicationStatus] = mapped_column(
@@ -61,33 +62,33 @@ class Application(Base):
         default=ApplicationKind.vacancy,
     )
     # Ссылка на вакансию/проект (FL.ru и др.). Для всех типов.
-    source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Ссылка на диалог с HR/заказчиком. Для всех типов.
-    chat_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    chat_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Бюджет заказа («50 000 ₽», «$500-1000»). В основном для freelance.
-    budget: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    budget: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Конкурс: сколько откликнулись на проект. В основном для freelance.
-    applicant_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    applicant_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Срок сдачи заказа. В основном для freelance.
-    deadline: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Ожидаемый срок найма/сотрудничества (текст, на усмотрение владельца).
-    expected_term: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    expected_term: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Внутренний рейтинг (1-5 звёзд). Для всех типов.
-    rating: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # ТЗ заказа (извлечённый текст из PDF или вставленный вручную).
     # Идёт в промпт генерации если заполнено, повышая релевантность отклика.
-    spec_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    spec_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Оценка стоимости/сроков от LLM (только для фриланс, только для владельца).
-    estimate: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    estimate: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Snapshot отрендеренного промпта, который породил CV/cover letter.
     # Для воспроизводимости и отладки. Не показывается кандидатам/HR.
-    generated_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    generated_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Дополнительная инструкция владельца к LLM при генерации.
     # Сохраняется для переиспользования в будущих откликах.
-    extra_instruction: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    extra_instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    published_at: Mapped[Optional[datetime]] = mapped_column(
+    published_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 

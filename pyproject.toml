@@ -36,7 +36,17 @@ include = ["app*"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
+
+[tool.ruff.lint]
+# B008 — Depends()/File() в аргументах FastAPI (стандартный паттерн, false positive)
+# S110 — try/except/pass (намеренное подавление ошибок декомпозиции)
+# BLE001 — bare except Exception (намеренный fallback в streaming/error handling)
+# PIE810 — startswith tuple merge (читаемость важнее)
+# SIM102 — nested if merge (читаемость важнее)
+# RUF059 — unused unpacked variable в тестах
+# RUF012 — mutable class attr в тестах (mock objects)
+ignore = ["B008", "S110", "BLE001", "PIE810", "SIM102", "RUF059", "RUF012"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

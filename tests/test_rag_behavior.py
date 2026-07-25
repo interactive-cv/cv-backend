@@ -8,8 +8,8 @@
 """
 import pytest
 
-from app.llm.prompts import build_system_prompt
 from app.llm.client import stream_chat
+from app.llm.prompts import build_system_prompt
 
 # Демонстрационный CV-контекст для e2e-проверок RAG.
 CV_MD = """\

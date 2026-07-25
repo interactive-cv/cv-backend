@@ -1,7 +1,7 @@
 import secrets
 import string
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
@@ -42,13 +42,13 @@ from app.schemas.application import (
     GenerateIn,
     GenerateOut,
 )
+from app.schemas.artifact import ArtifactOut
 from app.schemas.cv import CVVariantCreateIn
 from app.schemas.interview import (
     InterviewCreateIn,
     InterviewOut,
     InterviewUpdateIn,
 )
-from app.schemas.artifact import ArtifactOut
 from app.schemas.link import LinkCreateIn
 from app.schemas.settings import (
     ConfigTextOut,
@@ -125,7 +125,7 @@ async def create_link(
     link = ShortLink(
         code=code,
         cv_variant_id=v.id,
-        expires_at=datetime.now(timezone.utc) + timedelta(days=body.ttl_days),
+        expires_at=datetime.now(UTC) + timedelta(days=body.ttl_days),
         max_hits=body.max_hits,
     )
     session.add(link)
@@ -356,7 +356,7 @@ async def create_application(
         link = ShortLink(
             code=code,
             cv_variant_id=v.id,
-            expires_at=datetime.now(timezone.utc) + timedelta(days=30),
+            expires_at=datetime.now(UTC) + timedelta(days=30),
         )
         session.add(link)
         await session.flush()  # ShortLink должен существовать до FK-ссылки
@@ -386,7 +386,7 @@ async def create_application(
         generated_prompt=body.generated_prompt,
         extra_instruction=body.extra_instruction,
         published_at=(
-            datetime.now(timezone.utc) if body.status == "active" else None
+            datetime.now(UTC) if body.status == "active" else None
         ),
     )
     session.add(app)
@@ -552,7 +552,7 @@ async def publish_application(
         existing_link = await session.get(ShortLink, a.short_link_code)
         if existing_link:
             # Продлеваем срок действия на 30 дней от сейчас
-            existing_link.expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+            existing_link.expires_at = datetime.now(UTC) + timedelta(days=30)
             code = existing_link.code
         else:
             # Код есть, но запись потеряна — генерируем новую
@@ -561,7 +561,7 @@ async def publish_application(
                 link = ShortLink(
                     code=code,
                     cv_variant_id=a.cv_variant_id,
-                    expires_at=datetime.now(timezone.utc) + timedelta(days=30),
+                    expires_at=datetime.now(UTC) + timedelta(days=30),
                 )
                 session.add(link)
                 await session.flush()
@@ -573,7 +573,7 @@ async def publish_application(
             link = ShortLink(
                 code=code,
                 cv_variant_id=a.cv_variant_id,
-                expires_at=datetime.now(timezone.utc) + timedelta(days=30),
+                expires_at=datetime.now(UTC) + timedelta(days=30),
             )
             session.add(link)
             await session.flush()
@@ -583,7 +583,7 @@ async def publish_application(
         if v:
             v.status = CVVariantStatus.active
     a.status = ApplicationStatus.active
-    a.published_at = datetime.now(timezone.utc)
+    a.published_at = datetime.now(UTC)
     # заменяем плейсхолдер {CV_LINK} в cover letter на реальную короткую ссылку.
     # LLM вставляет плейсхолдер при генерации; при публикации ссылка уже известна.
     short_url = f"{settings.site_url}/{code}"
@@ -831,7 +831,7 @@ async def get_upcoming_interviews(
     Возвращает интервью с scheduled_at >= now(), отсортированные по времени.
     Limit 10. Денормализованы поля отклика (role, company) для отображения.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     rows = (
         await session.execute(
             select(Interview, Application)
@@ -1008,7 +1008,7 @@ async def list_instructions(
 def _config_row(row: ConfigText | None, key: str) -> ConfigTextOut:
     """Безопасная обёртка: если записи нет в БД — возвращаем пустую с ключом."""
     if row is None:
-        return ConfigTextOut(key=key, value="", updated_at=datetime.now(timezone.utc))
+        return ConfigTextOut(key=key, value="", updated_at=datetime.now(UTC))
     return ConfigTextOut(key=row.key, value=row.value, updated_at=row.updated_at)
 
 

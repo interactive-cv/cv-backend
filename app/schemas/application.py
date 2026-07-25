@@ -4,8 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.schemas.interview import InterviewOut
 from app.schemas.artifact import ArtifactOut
+from app.schemas.interview import InterviewOut
 
 
 class GenerateIn(BaseModel):

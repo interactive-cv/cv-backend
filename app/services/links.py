@@ -1,8 +1,7 @@
 import hashlib
 import hmac
 import uuid
-
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,8 +38,8 @@ async def resolve_link(
     # SQLite теряет tzinfo при чтении; приводим к aware для корректного сравнения.
     expires = link.expires_at
     if expires.tzinfo is None:
-        expires = expires.replace(tzinfo=timezone.utc)
-    if datetime.now(timezone.utc) > expires:
+        expires = expires.replace(tzinfo=UTC)
+    if datetime.now(UTC) > expires:
         raise AppError("gone", "Срок действия ссылки истёк. Свяжитесь с автором.", 410)
     if link.max_hits is not None and link.hit_count >= link.max_hits:
         raise AppError("gone", "Лимит открытий ссылки исчерпан", 410)
