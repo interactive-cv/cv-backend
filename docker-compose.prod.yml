@@ -16,6 +16,8 @@ services:
       - libera_cv_le_ssl:/etc/nginx/ssl
       - ./nginx_ssl/conf/service_cv.conf:/etc/nginx/service_cv.conf
       - ./nginx_ssl/conf/service_med.conf:/etc/nginx/service_med.conf
+      - ./nginx_ssl/conf/service_libera.conf:/etc/nginx/service_libera.conf
+      - /home/deploy/libera/site:/usr/share/nginx/libera:ro
       - /home/deploy/med/site:/usr/share/nginx/med:ro
     environment:
       - TZ=Europe/Moscow
