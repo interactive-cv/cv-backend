@@ -546,3 +546,43 @@ async def test_instructions_endpoint(client, session):
     assert len(data) >= 1
     assert all(d["extra_instruction"] for d in data)
     assert any(d["extra_instruction"] == "убрать 1С из CV" for d in data)
+
+
+# ===== Тесты platform (kwork) =====
+
+
+@pytest.mark.asyncio
+async def test_platform_saved_and_returned(client, session):
+    """platform сохраняется в Application и возвращается в detail."""
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "Kwork", "role": "Web service", "vacancy_text": "v",
+            "cv_markdown": "# m", "cover_letter": "", "slug": "kwork-1",
+            "platform": "kwork",
+        },
+    )
+    assert res.status_code == 201
+    app_id = res.json()["id"]
+
+    detail = (await client.get(f"/api/admin/applications/{app_id}", headers=VALID)).json()
+    assert detail["platform"] == "kwork"
+
+
+@pytest.mark.asyncio
+async def test_kwork_generation_no_cv_link(client, session):
+    """Kwork промпт не содержит {cv_link} плейсхолдер (запрет ссылок)."""
+    from app.llm.generate_prompt import build_generate_prompt
+    from app.models import MasterCV
+
+    session.add(MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV\nDev", version=1))
+    await session.commit()
+
+    prompt = await build_generate_prompt(
+        session, "# CV\nDev", "Нужен веб-сервис", [], "freelance",
+        platform="kwork",
+    )
+    assert "{cv_link}" not in prompt
+    assert "KWORK" in prompt or "kwork" in prompt.lower()
+    assert "ЗАПРЕЩЕНЫ" in prompt  # жёсткие правила присутствуют
