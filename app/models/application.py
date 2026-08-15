@@ -86,6 +86,8 @@ class Application(Base):
     # Дополнительная инструкция владельца к LLM при генерации.
     # Сохраняется для переиспользования в будущих откликах.
     extra_instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Биржа-источник: None|"fl"|"kwork". При kwork — свой промпт, только отклик без CV.
+    platform: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     published_at: Mapped[datetime | None] = mapped_column(

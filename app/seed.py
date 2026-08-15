@@ -22,6 +22,7 @@ from app.seed_defaults import (
     DEFAULT_PROMPT_GENERATE,
     DEFAULT_PROMPT_GENERATE_CONTEST,
     DEFAULT_PROMPT_GENERATE_FREELANCE,
+    DEFAULT_PROMPT_GENERATE_KWORK,
     DEFAULT_PROMPT_RESPONSE_EDIT,
 )
 from app.services.cv_parser import parse_master_cv
@@ -67,6 +68,7 @@ def _seed_config_text(session: Session) -> int:
         "prompt_generate_contest": DEFAULT_PROMPT_GENERATE_CONTEST,
         "prompt_cv_edit": DEFAULT_PROMPT_CV_EDIT,
         "prompt_response_edit": DEFAULT_PROMPT_RESPONSE_EDIT,
+        "prompt_generate_kwork": DEFAULT_PROMPT_GENERATE_KWORK,
     }
     for key in CONFIG_KEYS:
         session.add(ConfigText(key=key, value=defaults.get(key, "")))

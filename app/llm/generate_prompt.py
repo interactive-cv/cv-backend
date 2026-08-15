@@ -60,10 +60,12 @@ async def build_generate_prompt(
     kind: str = "vacancy",
     spec_text: str | None = None,
     extra_instruction: str | None = None,
+    platform: str | None = None,
 ) -> str:
     """Собирает промпт для генерации CV и cover letter.
 
     Шаблон берётся из БД:
+      - platform=kwork → prompt_generate_kwork (жёсткие правила биржи)
       - vacancy → prompt_generate
       - freelance → prompt_generate_freelance
       - contest → prompt_generate_contest
@@ -76,7 +78,14 @@ async def build_generate_prompt(
     """
     from app.services.config_text import get_config_value
 
-    if kind == "freelance":
+    if platform == "kwork":
+        from app.seed_defaults import DEFAULT_PROMPT_GENERATE_KWORK
+
+        template = (
+            await get_config_value(session, "prompt_generate_kwork")
+            or DEFAULT_PROMPT_GENERATE_KWORK
+        )
+    elif kind == "freelance":
         from app.seed_defaults import DEFAULT_PROMPT_GENERATE_FREELANCE
 
         template = (

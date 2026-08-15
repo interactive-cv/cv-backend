@@ -22,6 +22,7 @@ class SettingsOut(BaseModel):
     prompt_generate_contest: ConfigTextOut
     prompt_cv_edit: ConfigTextOut
     prompt_response_edit: ConfigTextOut
+    prompt_generate_kwork: ConfigTextOut
 
 
 class SettingsUpdateIn(BaseModel):
@@ -35,6 +36,7 @@ class SettingsUpdateIn(BaseModel):
     prompt_generate_contest: str | None = None
     prompt_cv_edit: str | None = None
     prompt_response_edit: str | None = None
+    prompt_generate_kwork: str | None = None
 
 
 class CvEditInstructionIn(BaseModel):

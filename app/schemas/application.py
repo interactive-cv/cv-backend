@@ -16,6 +16,7 @@ class GenerateIn(BaseModel):
     vacancy_text: str
     selected_projects: list[str] = []
     kind: Literal["vacancy", "freelance", "contest"] = "vacancy"
+    platform: Literal["fl", "kwork"] | None = None
     spec_text: str | None = None
     estimate: str | None = None
     extra_instruction: str | None = None
@@ -65,6 +66,7 @@ class ApplicationCreateIn(BaseModel):
     estimate: str | None = None
     generated_prompt: str | None = None
     extra_instruction: str | None = None
+    platform: str | None = None
 
 
 class ApplicationUpdateIn(BaseModel):
@@ -96,6 +98,7 @@ class ApplicationOut(BaseModel):
     slug: str
     status: str
     kind: str = "vacancy"
+    platform: str | None = None
     total_clicks: int = 0
     unique_clicks: int = 0
     short_link_code: str | None = None
@@ -120,6 +123,7 @@ class ApplicationDetailOut(ApplicationOut):
     estimate: str | None = None
     generated_prompt: str | None = None
     extra_instruction: str | None = None
+    platform: str | None = None
     interviews: list[InterviewOut] = []
     artifacts: list[ArtifactOut] = []
     last_click_at: datetime | None = None

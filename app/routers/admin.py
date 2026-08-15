@@ -221,7 +221,7 @@ async def generate_cv(
         raise AppError("not_found", "Мастер-CV не найден", 404)
     prompt = await build_generate_prompt(
         session, master.full_markdown, body.vacancy_text, body.selected_projects,
-        body.kind, body.spec_text, body.extra_instruction,
+        body.kind, body.spec_text, body.extra_instruction, body.platform,
     )
     chunks: list[str] = []
     async for token in stream_chat(
@@ -304,6 +304,7 @@ async def list_applications(
                 slug=a.slug,
                 status=a.status.value,
                 kind=a.kind.value if a.kind else "vacancy",
+                platform=a.platform,
                 total_clicks=total,
                 unique_clicks=unique,
                 short_link_code=a.short_link_code,
@@ -385,6 +386,7 @@ async def create_application(
         estimate=body.estimate,
         generated_prompt=body.generated_prompt,
         extra_instruction=body.extra_instruction,
+        platform=body.platform,
         published_at=(
             datetime.now(UTC) if body.status == "active" else None
         ),
@@ -453,6 +455,7 @@ async def get_application(
         estimate=a.estimate,
         generated_prompt=a.generated_prompt,
         extra_instruction=a.extra_instruction,
+        platform=a.platform,
         interviews=[
             InterviewOut(
                 id=str(i.id),
@@ -1032,6 +1035,9 @@ async def get_settings(
         prompt_cv_edit=_config_row(rows.get("prompt_cv_edit"), "prompt_cv_edit"),
         prompt_response_edit=_config_row(
             rows.get("prompt_response_edit"), "prompt_response_edit"
+        ),
+        prompt_generate_kwork=_config_row(
+            rows.get("prompt_generate_kwork"), "prompt_generate_kwork"
         ),
     )
 
