@@ -586,3 +586,44 @@ async def test_kwork_generation_no_cv_link(client, session):
     assert "{cv_link}" not in prompt
     assert "KWORK" in prompt or "kwork" in prompt.lower()
     assert "ЗАПРЕЩЕНЫ" in prompt  # жёсткие правила присутствуют
+
+
+# ===== Тесты kwork budget (вилка) =====
+
+
+@pytest.mark.asyncio
+async def test_budget_max_saved_and_returned(client, session):
+    """budget_max сохраняется и возвращается."""
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "Kwork", "role": "MVP", "vacancy_text": "v",
+            "cv_markdown": "# m", "cover_letter": "", "slug": "kw-budget",
+            "platform": "kwork", "budget": "1500", "budget_max": "4500",
+        },
+    )
+    assert res.status_code == 201
+    app_id = res.json()["id"]
+    detail = (await client.get(f"/api/admin/applications/{app_id}", headers=VALID)).json()
+    assert detail["budget"] == "1500"
+    assert detail["budget_max"] == "4500"
+
+
+@pytest.mark.asyncio
+async def test_kwork_prompt_has_budget_and_estimate(client, session):
+    """Kwork промпт с бюджетом: бюджетная вилка + ESTIMATE блок."""
+    from app.llm.generate_prompt import build_generate_prompt
+    from app.models import MasterCV
+
+    session.add(MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV\nDev", version=1))
+    await session.commit()
+
+    prompt = await build_generate_prompt(
+        session, "# CV\nDev", "Нужен MVP", [], "freelance",
+        platform="kwork", budget="1500", budget_max="4500",
+    )
+    assert "Желаемый бюджет: 1500" in prompt
+    assert "Допустимый бюджет: 4500" in prompt
+    assert "===ESTIMATE===" in prompt
+    assert "{cv_link}" not in prompt

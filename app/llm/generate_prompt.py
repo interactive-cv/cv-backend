@@ -61,6 +61,8 @@ async def build_generate_prompt(
     spec_text: str | None = None,
     extra_instruction: str | None = None,
     platform: str | None = None,
+    budget: str | None = None,
+    budget_max: str | None = None,
 ) -> str:
     """Собирает промпт для генерации CV и cover letter.
 
@@ -74,6 +76,7 @@ async def build_generate_prompt(
     spec_text — ТЗ заказа (извлечённое из PDF или вставленное).
     extra_instruction — доп. указание владельца для этой конкретной генерации
     (например: «убери 1С», «акцент на backend»).
+    budget / budget_max — вилка бюджета заказа (kwork: желаемый / допустимый).
     Оба вставляются в промпт если есть.
     """
     from app.services.config_text import get_config_value
@@ -117,13 +120,23 @@ async def build_generate_prompt(
     spec_block = ""
     if spec_section:
         spec_block = SPEC_SECTION_TEMPLATE.replace("{spec_text}", spec_section)
+
+    # Бюджетная вилка (kwork: желаемый + допустимый; FL: просто бюджет).
+    budget_block = ""
+    if budget and budget.strip():
+        budget_block = f"\nБЮДЖЕТ ЗАКАЗА:\nЖелаемый бюджет: {budget.strip()}\n"
+        if budget_max and budget_max.strip():
+            budget_block += f"Допустимый бюджет: {budget_max.strip()}\n"
+    elif budget_max and budget_max.strip():
+        budget_block = f"\nБЮДЖЕТ ЗАКАЗА: {budget_max.strip()}\n"
+
     return template.format(
         cv_markdown=cv_markdown,
         vacancy_text=vacancy_text,
         selected_projects=projects_str,
         cv_link=CV_LINK_PLACEHOLDER,
         spec_text=spec_section,
-        spec_section=spec_block + instruction_block,
+        spec_section=budget_block + spec_block + instruction_block,
     )
 
 
