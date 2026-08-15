@@ -7,7 +7,8 @@ Create Date: 2026-08-15 14:00:00.000000
 Application.budget_max — kwork «Допустимый» бюджет (верхняя граница вилки).
 budget = «Желаемый бюджет» (нижняя граница).
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
+from typing import Union
 
 from alembic import op
 import sqlalchemy as sa
