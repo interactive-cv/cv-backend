@@ -17,6 +17,8 @@ class GenerateIn(BaseModel):
     selected_projects: list[str] = []
     kind: Literal["vacancy", "freelance", "contest"] = "vacancy"
     platform: Literal["fl", "kwork"] | None = None
+    budget: str | None = None
+    budget_max: str | None = None
     spec_text: str | None = None
     estimate: str | None = None
     extra_instruction: str | None = None
@@ -58,6 +60,7 @@ class ApplicationCreateIn(BaseModel):
     source_url: str | None = None
     chat_url: str | None = None
     budget: str | None = None
+    budget_max: str | None = None
     applicant_count: int | None = None
     deadline: datetime | None = None
     expected_term: str | None = None
@@ -81,6 +84,7 @@ class ApplicationUpdateIn(BaseModel):
     source_url: str | None = None
     chat_url: str | None = None
     budget: str | None = None
+    budget_max: str | None = None
     applicant_count: int | None = None
     deadline: datetime | None = None
     expected_term: str | None = None
@@ -105,6 +109,7 @@ class ApplicationOut(BaseModel):
     source_url: str | None = None
     chat_url: str | None = None
     budget: str | None = None
+    budget_max: str | None = None
     applicant_count: int | None = None
     deadline: datetime | None = None
     expected_term: str | None = None

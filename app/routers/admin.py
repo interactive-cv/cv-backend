@@ -222,6 +222,7 @@ async def generate_cv(
     prompt = await build_generate_prompt(
         session, master.full_markdown, body.vacancy_text, body.selected_projects,
         body.kind, body.spec_text, body.extra_instruction, body.platform,
+        body.budget, body.budget_max,
     )
     chunks: list[str] = []
     async for token in stream_chat(
@@ -311,6 +312,7 @@ async def list_applications(
                 source_url=a.source_url,
                 chat_url=a.chat_url,
                 budget=a.budget,
+                budget_max=a.budget_max,
                 applicant_count=a.applicant_count,
                 deadline=a.deadline,
                 expected_term=a.expected_term,
@@ -378,6 +380,7 @@ async def create_application(
         source_url=body.source_url,
         chat_url=body.chat_url,
         budget=body.budget,
+        budget_max=body.budget_max,
         applicant_count=body.applicant_count,
         deadline=body.deadline,
         expected_term=body.expected_term,
@@ -447,6 +450,7 @@ async def get_application(
         source_url=a.source_url,
         chat_url=a.chat_url,
         budget=a.budget,
+        budget_max=a.budget_max,
         applicant_count=a.applicant_count,
         deadline=a.deadline,
         expected_term=a.expected_term,

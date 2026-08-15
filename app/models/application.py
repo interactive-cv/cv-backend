@@ -65,8 +65,10 @@ class Application(Base):
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Ссылка на диалог с HR/заказчиком. Для всех типов.
     chat_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Бюджет заказа («50 000 ₽», «$500-1000»). В основном для freelance.
+    # Бюджет заказа («50 000 ₽», «$500-1000»). Для kwork — «Желаемый бюджет» (нижняя граница вилки).
     budget: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Kwork: «Допустимый» бюджет (верхняя граница вилки). Для FL.ru не используется.
+    budget_max: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Конкурс: сколько откликнулись на проект. В основном для freelance.
     applicant_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Срок сдачи заказа. В основном для freelance.
