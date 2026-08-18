@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.deps import get_session
 from app.errors import AppError
+from app.models import ShortLink
 from app.ratelimit import check_resolve_rate
 from app.request_utils import client_ip
 from app.schemas.link import LinkResolveOut
@@ -23,6 +25,15 @@ async def resolve(
         raise AppError("rate_limited", "Слишком много запросов, подождите минуту", 429)
     ua = request.headers.get("user-agent", "")
     referrer = request.headers.get("referer", "")
+
+    # Проверяем ссылку ДО создания сессии: chat_session.short_link_code
+    # имеет FK на short_link.code, вставка с несуществующим кодом даёт
+    # FK violation (500) вместо честного 404.
+    link = (
+        await session.execute(select(ShortLink).where(ShortLink.code == code))
+    ).scalar_one_or_none()
+    if not link:
+        raise AppError("not_found", "Ссылка не найдена", 404)
 
     # Создаём или находим сессию посетителя (единый профиль: клики + чат).
     cookie_sid = request.cookies.get("cv_session_id")

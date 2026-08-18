@@ -336,6 +336,10 @@ async def create_application(
     ).scalar_one_or_none()
     if existing:
         raise AppError("conflict", "Slug уже занят", 409)
+    # kwork: публичная CV-страница не создаётся — CV по дизайну kwork-промпта
+    # пуст, ссылка вела бы на страницу с одним заголовком. Вариант остаётся
+    # draft (недоступен публично), короткая ссылка не генерируется.
+    is_kwork = body.platform == "kwork"
     # создаём cv_variant для отклика
     v = CVVariant(
         master_cv_id=1,
@@ -344,7 +348,9 @@ async def create_application(
         company=body.company,
         content_markdown=body.cv_markdown,
         status=(
-            CVVariantStatus.active if body.status == "active" else CVVariantStatus.draft
+            CVVariantStatus.active
+            if body.status == "active" and not is_kwork
+            else CVVariantStatus.draft
         ),
     )
     session.add(v)
@@ -354,7 +360,7 @@ async def create_application(
     short_url: str | None = None
     # Если создаём сразу активным (published) — генерируем короткую ссылку
     # и заменяем {CV_LINK} в cover letter. Это эквивалент ручной публикации.
-    if body.status == "active":
+    if body.status == "active" and not is_kwork:
         code = _generate_code()
         link = ShortLink(
             code=code,
@@ -552,6 +558,13 @@ async def publish_application(
     ).scalar_one_or_none()
     if not a:
         raise AppError("not_found", "Отклик не найден", 404)
+    # kwork: без публичных артефактов — «Опубликовать» означает лишь
+    # «отклик отправлен». Ссылка и активация CV-варианта не нужны.
+    if a.platform == "kwork":
+        a.status = ApplicationStatus.active
+        a.published_at = datetime.now(UTC)
+        await session.commit()
+        return {"id": str(a.id), "code": None, "url": None}
     # Если уже есть короткая ссылка — переиспользуем её (продляем срок,
     # активируем CV-вариант). Это позволяет републиковать по той же ссылке,
     # которая уже у заказчика. Новая ссылка генерируется только если её не было.

@@ -571,6 +571,58 @@ async def test_platform_saved_and_returned(client, session):
 
 
 @pytest.mark.asyncio
+async def test_kwork_active_no_public_link(client, session):
+    """kwork-заявка при status=active не получает короткую ссылку,
+    CV-вариант остаётся draft — публичная страница отдаёт 404."""
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "Kwork", "role": "Bot", "vacancy_text": "v",
+            "cv_markdown": "", "cover_letter": "Отклик", "slug": "kwork-pub-1",
+            "platform": "kwork", "status": "active",
+        },
+    )
+    assert res.status_code == 201
+    assert res.json().get("url") is None
+
+    app_id = res.json()["id"]
+    detail = (await client.get(f"/api/admin/applications/{app_id}", headers=VALID)).json()
+    assert detail["status"] == "active"
+    assert detail["short_link_code"] is None
+
+    pub = await client.get("/api/variants/kwork-pub-1")
+    assert pub.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_kwork_publish_marks_sent_without_link(client, session):
+    """«Опубликовать» для kwork = отметить отправленным: статус active,
+    но без короткой ссылки и без активации варианта."""
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "Kwork", "role": "Parser", "vacancy_text": "v",
+            "cv_markdown": "", "cover_letter": "Отклик", "slug": "kwork-pub-2",
+            "platform": "kwork", "status": "draft",
+        },
+    )
+    assert res.status_code == 201
+    app_id = res.json()["id"]
+
+    pub = await client.post(f"/api/admin/applications/{app_id}/publish", headers=VALID)
+    assert pub.status_code == 200
+    assert pub.json()["code"] is None
+    assert pub.json()["url"] is None
+
+    detail = (await client.get(f"/api/admin/applications/{app_id}", headers=VALID)).json()
+    assert detail["status"] == "active"
+    assert detail["short_link_code"] is None
+    assert (await client.get("/api/variants/kwork-pub-2")).status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_kwork_generation_no_cv_link(client, session):
     """Kwork промпт не содержит {cv_link} плейсхолдер (запрет ссылок)."""
     from app.llm.generate_prompt import build_generate_prompt
