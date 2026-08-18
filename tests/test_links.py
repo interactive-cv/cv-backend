@@ -55,6 +55,14 @@ async def test_resolve_link_max_hits_410(client, session):
 
 
 @pytest.mark.asyncio
+async def test_resolve_link_unknown_code_404_no_session(client, session):
+    """Несуществующий код: 404 (а не 500 от FK violation при создании сессии)."""
+    res = await client.get("/api/links/resolve", params={"code": "NOPE"})
+    assert res.status_code == 404
+    assert res.json()["error"] == "not_found"
+
+
+@pytest.mark.asyncio
 async def test_resolve_unknown_code_404(client):
     res = await client.get("/api/links/resolve", params={"code": "ZZZZ"})
     assert res.status_code == 404
