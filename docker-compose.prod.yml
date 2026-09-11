@@ -10,6 +10,9 @@ services:
     image: libera-cv/nginx-ssl
     container_name: web_nginx
     hostname: web_nginx
+    ports:
+      - "80:80"
+      - "443:9443"
     restart: always
     depends_on: [nextjs, fastapi]
     volumes:
@@ -28,7 +31,6 @@ services:
       - SSL_KEY=cv-le-key.pem
       - SSL_CHAIN_CERT=cv-le-chain-crt.pem
     networks:
-      - libera
       - internal
     logging:
       driver: json-file
@@ -84,7 +86,5 @@ volumes:
   libera_cv_artifacts:
 
 networks:
-  libera:
-    external: true
   internal:
     driver: bridge
