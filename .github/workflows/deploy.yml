@@ -75,26 +75,25 @@ jobs:
             -e "ssh -i ~/.ssh/deploy_key" \
             cv-frontend-checkout/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/home/deploy/libera_cv/cv-frontend/
 
-      - name: Rebuild + migrate on VPS
+      - name: Rebuild + migrate on VPS (detached)
+        # Долгая ssh-сессия раннер(US)→VPS(РФ) рвётся по транзиту: rsync (секунды)
+        # проходит, rebuild (минуты вывода) падает; вручную с РФ всё зелёное.
+        # Решение: rebuild запускается nohup'ом на сервере (deploy/rebuild.sh),
+        # результат опрашивается короткими сессиями. Лог: /tmp/deploy_ci.log.
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} '
-            set -e
-            # Сериализация деплоев: merge backend и frontend PR запускает два
-            # job'а, без блокировки их down/up перемешиваются и теряют контейнеры.
-            exec 9>/tmp/libera_cv_deploy.lock
-            flock 9
-            cd /home/deploy/libera_cv/cv-backend
-            # Убираем осиротевшие контейнеры от предыдущих упавших деплоев.
-            docker compose -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
-            docker compose -f docker-compose.prod.yml up -d --build --wait
-            docker compose -f docker-compose.prod.yml exec -T fastapi alembic upgrade head
-            docker compose -f docker-compose.prod.yml exec -T fastapi python -m app.seed
-            # Все 4 сервиса должны быть running — иначе деплой считаем упавшим.
-            running=$(docker compose -f docker-compose.prod.yml ps --status running -q | wc -l)
-            [ "$running" -ge 4 ] || { echo "❌ running only $running/4 services"; exit 1; }
-            flock -u 9
-          '
-
+          SSH="ssh -i ~/.ssh/deploy_key -o ConnectTimeout=20 ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
+          $SSH 'rm -f /tmp/deploy_ci.done /tmp/deploy_ci.log; nohup bash -c "bash /home/deploy/libera_cv/cv-backend/deploy/rebuild.sh > /tmp/deploy_ci.log 2>&1; echo \$? > /tmp/deploy_ci.done" >/dev/null 2>&1 & echo launched'
+          rc=""
+          for i in $(seq 1 60); do
+            sleep 10
+            rc=$($SSH 'cat /tmp/deploy_ci.done 2>/dev/null || true')
+            [ -n "$rc" ] && break
+          done
+          $SSH 'tail -30 /tmp/deploy_ci.log 2>/dev/null' || true
+          if [ "$rc" != "0" ]; then
+            echo "❌ rebuild failed (rc=$rc)"; exit 1
+          fi
+          echo "✅ rebuild OK"
       - name: Smoke test
         run: |
           sleep 5
