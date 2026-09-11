@@ -47,6 +47,12 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - libera_cv_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-cv}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
     networks: [internal]
 
   fastapi:
@@ -55,7 +61,9 @@ services:
     container_name: libera_cv_fastapi
     restart: always
     env_file: .env
-    depends_on: [postgres]
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks: [internal]
     volumes:
       - libera_cv_artifacts:/app/artifacts
