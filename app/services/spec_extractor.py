@@ -4,9 +4,13 @@
 Поддерживает таблицы и помечает позиции картинок в DOCX.
 """
 import io
+import zipfile
 from typing import Literal
 
 FileType = Literal["pdf", "docx"]
+
+# Magic bytes старого бинарного формата Word (OLE2 Compound File).
+_OLE2_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
 
 def detect_file_type(filename: str) -> FileType | None:
@@ -148,6 +152,17 @@ def _table_to_markdown(table) -> str:
     return "\n".join(rows)
 
 
+def _describe_bad_docx(content: bytes) -> str:
+    """Угадывает реальный формат файла с расширением .docx по magic bytes."""
+    if content[:8] == _OLE2_MAGIC:
+        return "это старый формат .doc (Word 97-2003)"
+    if content[:5] == b"{\\rtf":
+        return "это RTF-файл"
+    if content[:4] == b"%PDF":
+        return "это PDF-файл с неправильным расширением"
+    return "файл повреждён или это не DOCX"
+
+
 def extract_spec(filename: str, content: bytes) -> tuple[str, int, str]:
     """Извлекает текст из файла ТЗ.
 
@@ -164,9 +179,25 @@ def extract_spec(filename: str, content: bytes) -> tuple[str, int, str]:
         raise ValueError(f"Пустой файл: {filename}")
 
     if file_type == "pdf":
-        text, count = extract_pdf(content)
+        try:
+            text, count = extract_pdf(content)
+        except Exception as e:  # pypdf кидает разные типы на битых файлах
+            raise ValueError(
+                f"Не удалось прочитать PDF {filename}: файл повреждён "
+                f"или это не PDF ({type(e).__name__})"
+            ) from e
     else:
-        text, count = extract_docx(content)
+        from docx.opc.exceptions import PackageNotFoundError
+
+        try:
+            text, count = extract_docx(content)
+        except (zipfile.BadZipFile, PackageNotFoundError, KeyError) as e:
+            # DOCX — это ZIP; не-ZIP содержимое почти всегда .doc/RTF
+            # с переименованным расширением.
+            raise ValueError(
+                f"{filename}: {_describe_bad_docx(content)}. "
+                "Пересохраните как .docx (Word: Файл → Сохранить как) или PDF."
+            ) from e
 
     if not text.strip():
         raise ValueError(
