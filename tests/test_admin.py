@@ -679,3 +679,29 @@ async def test_kwork_prompt_has_budget_and_estimate(client, session):
     assert "Допустимый бюджет: 4500" in prompt
     assert "===ESTIMATE===" in prompt
     assert "{cv_link}" not in prompt
+
+
+# ===== Тесты PDF-экспорта =====
+
+
+@pytest.mark.asyncio
+async def test_pdf_preview_from_markdown(client, session):
+    """POST /pdf/preview: PDF из произвольного markdown (несохранённый редактор)."""
+    res = await client.post(
+        "/api/admin/pdf/preview",
+        headers=VALID,
+        json={"markdown": "# DevOps Иван\n- Docker, Kubernetes", "title": "DevOps"},
+    )
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+    assert res.content[:4] == b"%PDF"
+    # имя файла в заголовке — ASCII (latin-1), кириллица вырезается
+    assert "CV_DevOps.pdf" in res.headers["content-disposition"]
+
+
+@pytest.mark.asyncio
+async def test_pdf_preview_empty_markdown_400(client, session):
+    res = await client.post(
+        "/api/admin/pdf/preview", headers=VALID, json={"markdown": "   "}
+    )
+    assert res.status_code == 400
