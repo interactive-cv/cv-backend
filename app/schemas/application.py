@@ -139,6 +139,7 @@ class ApplicationDetailOut(ApplicationOut):
     generated_prompt: str | None = None
     extra_instruction: str | None = None
     platform: str | None = None
+    draft_reply: str | None = None
     interviews: list[InterviewOut] = []
     artifacts: list[ArtifactOut] = []
     last_click_at: datetime | None = None

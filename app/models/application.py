@@ -12,6 +12,7 @@ from app.db import Base
 
 if TYPE_CHECKING:
     from app.models.artifact import Artifact
+    from app.models.assistant_message import AssistantMessage
     from app.models.interview import Interview
     from app.models.negotiation import NegotiationMessage
 
@@ -104,3 +105,8 @@ class Application(Base):
     negotiation_messages: Mapped[list["NegotiationMessage"]] = relationship(
         back_populates="application", cascade="all, delete-orphan"
     )
+    assistant_messages: Mapped[list["AssistantMessage"]] = relationship(
+        back_populates="application", cascade="all, delete-orphan"
+    )
+    # Черновик ответа заказчику (автосохраняется с фронта, переживает перезагрузку)
+    draft_reply: Mapped[str | None] = mapped_column(Text, nullable=True)

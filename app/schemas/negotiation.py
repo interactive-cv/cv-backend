@@ -41,3 +41,34 @@ class SuggestReplyIn(BaseModel):
 
     instruction: str | None = None
     temperature: float = 0.7
+
+
+class AssistantMessageOut(BaseModel):
+    """Сообщение треда «владелец ↔ ассистент»."""
+
+    id: str
+    role: Literal["user", "assistant"]
+    content: str
+    created_at: datetime
+
+
+class AssistantChatIn(BaseModel):
+    """Новое сообщение владельца в тред ассистента (стриминг ответа).
+
+    Ответ ассистента сохраняется фронтом отдельным вызовом после стрима.
+    """
+
+    message: str
+    temperature: float = 0.7
+
+
+class AssistantSaveIn(BaseModel):
+    """Сохранение ответа ассистента после завершения стрима."""
+
+    content: str
+
+
+class DraftReplyIn(BaseModel):
+    """Автосохранение черновика ответа заказчику."""
+
+    draft: str

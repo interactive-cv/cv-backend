@@ -23,6 +23,7 @@ from app.models import (
     ApplicationKind,
     ApplicationStatus,
     Artifact,
+    AssistantMessage,
     ChatMessage,
     ChatSession,
     ConfigText,
@@ -53,6 +54,10 @@ from app.schemas.interview import (
 )
 from app.schemas.link import LinkCreateIn
 from app.schemas.negotiation import (
+    AssistantChatIn,
+    AssistantMessageOut,
+    AssistantSaveIn,
+    DraftReplyIn,
     NegotiationCreateIn,
     NegotiationMessageOut,
     NegotiationUpdateIn,
@@ -482,6 +487,7 @@ async def get_application(
         generated_prompt=a.generated_prompt,
         extra_instruction=a.extra_instruction,
         platform=a.platform,
+        draft_reply=a.draft_reply,
         interviews=[
             InterviewOut(
                 id=str(i.id),
@@ -1148,10 +1154,11 @@ async def suggest_reply(
     body: SuggestReplyIn,
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
-    """Черновик ответа заказчику (стриминг glm).
+    """Одноразовый черновик ответа заказчику (стриминг glm).
 
-    Контекст: заказ + ТЗ + отправленный отклик + история переговоров.
-    Последнее сообщение заказчика — то, на что отвечаем.
+    Устаревший путь: заменён тредом ассистента (/assistant-chat),
+    где ответ для заказчика приходит в маркерах ===DRAFT===.
+    Оставлен для совместимости.
     """
     from app.seed_defaults import DEFAULT_PROMPT_NEGOTIATION
 
@@ -1205,6 +1212,158 @@ async def suggest_reply(
                 [{"role": "user", "content": "Напиши черновик ответа заказчику"}],
                 prompt,
                 temperature=body.temperature,
+            ):
+                yield token
+        except Exception:
+            yield "\n\n[Ошибка при обращении к LLM. Попробуйте ещё раз.]"
+
+    return StreamingResponse(gen(), media_type="text/plain")
+
+
+# ===== Assistant: тред владельца с LLM по отклику =====
+
+
+@router.get("/applications/{app_id}/assistant-messages")
+async def list_assistant_messages(
+    app_id: str, session: AsyncSession = Depends(get_session)
+) -> list[AssistantMessageOut]:
+    """История треда «владелец ↔ ассистент» (хронология)."""
+    await _get_app_or_404(session, app_id)
+    rows = (
+        await session.execute(
+            select(AssistantMessage)
+            .where(AssistantMessage.application_id == uuid.UUID(app_id))
+            .order_by(AssistantMessage.created_at, AssistantMessage.id)
+        )
+    ).scalars().all()
+    return [AssistantMessageOut(
+        id=str(m.id), role=m.role, content=m.content, created_at=m.created_at,
+    ) for m in rows]
+
+
+@router.post("/applications/{app_id}/assistant-messages", status_code=201)
+async def save_assistant_message(
+    app_id: str,
+    body: AssistantSaveIn,
+    session: AsyncSession = Depends(get_session),
+) -> AssistantMessageOut:
+    """Сохранить ответ ассистента после завершения стрима.
+
+    Сообщение владельца сохраняется самим /assistant-chat до стрима;
+    ответ ассистента фронт присылает сюда, когда поток дочитан.
+    """
+    await _get_app_or_404(session, app_id)
+    if not body.content.strip():
+        raise AppError("bad_request", "Пустое сообщение", 400)
+    m = AssistantMessage(
+        application_id=uuid.UUID(app_id),
+        role="assistant",
+        content=body.content.strip(),
+    )
+    session.add(m)
+    await session.commit()
+    return AssistantMessageOut(
+        id=str(m.id), role=m.role, content=m.content, created_at=m.created_at,
+    )
+
+
+@router.delete("/applications/{app_id}/assistant-messages", status_code=204)
+async def clear_assistant_thread(
+    app_id: str, session: AsyncSession = Depends(get_session)
+) -> None:
+    """Очистить тред ассистента (начать заново)."""
+    a = await _get_app_or_404(session, app_id)
+    rows = (
+        await session.execute(
+            select(AssistantMessage).where(
+                AssistantMessage.application_id == a.id
+            )
+        )
+    ).scalars().all()
+    for m in rows:
+        await session.delete(m)
+    await session.commit()
+
+
+@router.put("/applications/{app_id}/draft-reply")
+async def save_draft_reply(
+    app_id: str,
+    body: DraftReplyIn,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Автосохранение черновика ответа заказчику (debounce на фронте)."""
+    a = await _get_app_or_404(session, app_id)
+    a.draft_reply = body.draft if body.draft.strip() else None
+    await session.commit()
+    return {"ok": True, "len": len(a.draft_reply or "")}
+
+
+@router.post("/applications/{app_id}/assistant-chat")
+async def assistant_chat(
+    app_id: str,
+    body: AssistantChatIn,
+    session: AsyncSession = Depends(get_session),
+) -> StreamingResponse:
+    """Тред владельца с ассистентом (стриминг glm).
+
+    Контекст в system: заказ + ТЗ + отклик + переписка с заказчиком +
+    текущий черновик. История треда — из assistant_message (последние 40).
+    Режимы ответа задаёт промпт: обсуждение — текстом, текст заказчику —
+    в маркерах ===DRAFT===...===END===.
+    """
+    from app.seed_defaults import DEFAULT_PROMPT_ASSISTANT
+
+    if not body.message.strip():
+        raise AppError("bad_request", "Пустое сообщение", 400)
+    a = await _get_app_or_404(session, app_id)
+
+    template = (
+        await get_config_value(session, "prompt_assistant")
+        or DEFAULT_PROMPT_ASSISTANT
+    )
+
+    negotiation = (
+        await session.execute(
+            select(NegotiationMessage)
+            .where(NegotiationMessage.application_id == a.id)
+            .order_by(NegotiationMessage.created_at, NegotiationMessage.id)
+        )
+    ).scalars().all()
+    dialog_parts = []
+    for m in negotiation[-40:]:
+        who = "ЗАКАЗЧИК" if m.role == "customer" else "Я"
+        dialog_parts.append(f"[{m.created_at:%d.%m %H:%M}] {who}: {m.content}")
+
+    system_prompt = template.format(
+        order_text=a.vacancy_text,
+        spec_text=(a.spec_text or "").strip() or "(не предоставлено)",
+        response_text=a.cover_letter or "(отклик не сохранён)",
+        dialog_history="\n".join(dialog_parts) or "(переписки ещё нет)",
+        draft_reply=(a.draft_reply or "").strip() or "(пусто)",
+    )
+
+    history_rows = (
+        await session.execute(
+            select(AssistantMessage)
+            .where(AssistantMessage.application_id == a.id)
+            .order_by(AssistantMessage.created_at, AssistantMessage.id)
+        )
+    ).scalars().all()
+    chat_messages = [
+        {"role": m.role, "content": m.content} for m in history_rows[-40:]
+    ]
+    chat_messages.append({"role": "user", "content": body.message.strip()})
+
+    # Сообщение владельца сохраняем до стрима — история едина при ретраях
+    session.add(AssistantMessage(
+        application_id=a.id, role="user", content=body.message.strip(),
+    ))
+    await session.commit()
+
+    async def gen():
+        try:
+            async for token in stream_chat(
+                chat_messages, system_prompt, temperature=body.temperature,
             ):
                 yield token
         except Exception:
@@ -1288,6 +1447,9 @@ async def get_settings(
         ),
         prompt_negotiation=_config_row(
             rows.get("prompt_negotiation"), "prompt_negotiation"
+        ),
+        prompt_assistant=_config_row(
+            rows.get("prompt_assistant"), "prompt_assistant"
         ),
     )
 
