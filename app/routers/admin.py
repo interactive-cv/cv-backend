@@ -743,6 +743,40 @@ def _pdf_response(pdf_bytes: bytes, filename: str) -> Response:
     )
 
 
+@router.get("/applications/{app_id}/export")
+async def export_application_json(
+    app_id: str, session: AsyncSession = Depends(get_session)
+) -> dict:
+    """Полный дамп заказа (JSON) — для ZCode-skill /fl-export.
+
+    Всё, что есть по отклику: метаданные, заказ, отклик, CV, ТЗ, оценка,
+    переписка, интервью, список артефактов (с путями на сервере).
+    """
+    from app.services.order_export import collect_export
+
+    a = await _get_app_or_404(session, app_id)
+    return await collect_export(session, a)
+
+
+@router.get("/applications/{app_id}/export.zip")
+async def export_application_zip(
+    app_id: str, session: AsyncSession = Depends(get_session)
+) -> Response:
+    """ZIP со структурой папки проекта (AGENTS.md, order.md, ..., files/)."""
+    from app.services.order_export import build_zip, collect_export
+
+    a = await _get_app_or_404(session, app_id)
+    data = await collect_export(session, a)
+    zip_bytes = build_zip(data)
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{a.slug}-export.zip"',
+        },
+    )
+
+
 @router.get("/applications/{app_id}/pdf")
 async def download_cv_pdf(
     app_id: str, session: AsyncSession = Depends(get_session)
