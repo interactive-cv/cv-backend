@@ -35,6 +35,7 @@ from app.seed_defaults import (
     DEFAULT_PROMPT_GENERATE,
     DEFAULT_PROMPT_GENERATE_CONTEST,
     DEFAULT_PROMPT_GENERATE_FREELANCE,
+    DEFAULT_PROMPT_NEGOTIATION,
 )
 
 # Маппинг: ключ config_text → (дефолт из кода, человекочитаемое имя)
@@ -44,6 +45,7 @@ PROMPTS = {
     "prompt_generate_freelance": (DEFAULT_PROMPT_GENERATE_FREELANCE, "Генерация (фриланс)"),
     "prompt_generate_contest": (DEFAULT_PROMPT_GENERATE_CONTEST, "Генерация (конкурс)"),
     "prompt_cv_edit": (DEFAULT_PROMPT_CV_EDIT, "AI-правка CV"),
+    "prompt_negotiation": (DEFAULT_PROMPT_NEGOTIATION, "Помощник переговоров"),
 }
 
 
@@ -59,16 +61,16 @@ def fetch_prod_prompts(api_url: str, token: str) -> dict[str, str]:
 
 def fetch_local_prompts() -> dict[str, str]:
     """Получает промпты из локальной БД (через синхронный psycopg)."""
-    from app.config import settings
     from psycopg import connect
+
+    from app.config import settings
 
     # settings.database_url содержит SQLAlchemy-схему "postgresql+psycopg://..."
     # Чистому psycopg нужен "postgresql://..."
     url = settings.database_url.replace("postgresql+psycopg://", "postgresql://", 1)
-    with connect(url) as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT key, value FROM config_text")
-            return {row[0]: row[1] for row in cur.fetchall()}
+    with connect(url) as conn, conn.cursor() as cur:
+        cur.execute("SELECT key, value FROM config_text")
+        return {row[0]: row[1] for row in cur.fetchall()}
 
 
 def main():

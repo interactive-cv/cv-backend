@@ -805,3 +805,121 @@ def test_parse_estimate_with_risk_fields():
         "Комментарий",
     ):
         assert line in estimate
+
+
+# ===== Тесты Negotiation (переговоры с заказчиком) =====
+
+
+@pytest.mark.asyncio
+async def test_negotiation_crud(client, session):
+    """Добавление/правка/удаление сообщений переговоров + лента."""
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "FL", "role": "Интеграция CRM",
+            "vacancy_text": "Нужна интеграция CRM с телефонией",
+            "cover_letter": "Готов сделать", "cv_markdown": "# CV",
+            "slug": "negotiation-crud-1", "kind": "freelance",
+        },
+    )
+    assert res.status_code == 201
+    app_id = res.json()["id"]
+
+    # Сообщение заказчика (копипаст с FL)
+    r = await client.post(
+        f"/api/admin/applications/{app_id}/negotiation",
+        headers=VALID,
+        json={"role": "customer", "channel": "fl",
+              "content": "Здравствуйте! Какой срок и цену можете предложить?"},
+    )
+    assert r.status_code == 201
+    msg_id = r.json()["id"]
+    assert r.json()["role"] == "customer"
+    assert r.json()["channel"] == "fl"
+
+    # Мой ответ (telegram)
+    r = await client.post(
+        f"/api/admin/applications/{app_id}/negotiation",
+        headers=VALID,
+        json={"role": "me", "channel": "telegram", "content": "Срок 2 недели"},
+    )
+    assert r.status_code == 201
+
+    # Лента: хронология, 2 сообщения
+    r = await client.get(f"/api/admin/applications/{app_id}/negotiation", headers=VALID)
+    assert r.status_code == 200
+    msgs = r.json()
+    assert len(msgs) == 2
+    assert msgs[0]["role"] == "customer"
+    assert msgs[1]["role"] == "me"
+
+    # Правка канала
+    r = await client.put(
+        f"/api/admin/negotiation/{msg_id}", headers=VALID,
+        json={"channel": "telegram"},
+    )
+    assert r.status_code == 200
+    assert r.json()["channel"] == "telegram"
+
+    # Пустое сообщение — 400
+    r = await client.post(
+        f"/api/admin/applications/{app_id}/negotiation",
+        headers=VALID, json={"role": "me", "content": "   "},
+    )
+    assert r.status_code == 400
+
+    # Удаление
+    r = await client.delete(f"/api/admin/negotiation/{msg_id}", headers=VALID)
+    assert r.status_code == 204
+    r = await client.get(f"/api/admin/applications/{app_id}/negotiation", headers=VALID)
+    assert len(r.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_suggest_reply_validations(client, session):
+    """suggest-reply: пустая переписка и «последнее — моё» дают 400."""
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "FL", "role": "Парсер",
+            "vacancy_text": "Нужен парсер", "cover_letter": "Отклик",
+            "cv_markdown": "# CV", "slug": "negotiation-suggest-1",
+            "kind": "freelance",
+        },
+    )
+    app_id = res.json()["id"]
+
+    # Пустая переписка
+    r = await client.post(
+        f"/api/admin/applications/{app_id}/suggest-reply", headers=VALID, json={},
+    )
+    assert r.status_code == 400
+    assert "Переписка пуста" in r.json()["message"]
+
+    # Последнее — моё сообщение
+    await client.post(
+        f"/api/admin/applications/{app_id}/negotiation", headers=VALID,
+        json={"role": "customer", "content": "Сколько стоит?"},
+    )
+    await client.post(
+        f"/api/admin/applications/{app_id}/negotiation", headers=VALID,
+        json={"role": "me", "content": "50 тысяч"},
+    )
+    r = await client.post(
+        f"/api/admin/applications/{app_id}/suggest-reply", headers=VALID, json={},
+    )
+    assert r.status_code == 400
+    assert "Последнее сообщение" in r.json()["message"]
+
+
+def test_settings_contains_negotiation_prompt():
+    """prompt_negotiation в CONFIG_KEYS и дефолт содержит плейсхолдеры."""
+    from app.models.config_text import CONFIG_KEYS
+    from app.seed_defaults import DEFAULT_PROMPT_NEGOTIATION
+
+    assert "prompt_negotiation" in CONFIG_KEYS
+    for ph in ("{order_text}", "{spec_text}", "{response_text}",
+               "{dialog_history}", "{channel}", "{instruction}"):
+        assert ph in DEFAULT_PROMPT_NEGOTIATION
