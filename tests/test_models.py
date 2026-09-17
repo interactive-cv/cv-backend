@@ -55,6 +55,7 @@ async def test_all_tables_creatable(session):
         "master_cv", "cv_variant", "short_link", "link_hit", "project",
         "application", "interview", "artifact", "config_text",
         "chat_session", "chat_message", "negotiation_message",
+        "assistant_message",
     }
 
     master = MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV", version=1)

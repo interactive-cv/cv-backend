@@ -996,3 +996,73 @@ async def test_export_not_found_404(client, session):
         f"/api/admin/applications/{uuid.uuid4()}/export", headers=VALID
     )
     assert r.status_code == 404
+
+
+# ===== Тесты assistant-треда и черновика ответа =====
+
+
+@pytest.mark.asyncio
+async def test_assistant_thread_and_draft_reply(client, session):
+    """История треда, сохранение ответа, очистка; черновик ответа заказчику."""
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "FL", "role": "Доработка магазина",
+            "vacancy_text": "Нужна доработка магазина на Opencart",
+            "cover_letter": "Сделаю", "cv_markdown": "# CV",
+            "slug": "assistant-thread-1", "kind": "freelance",
+        },
+    )
+    app_id = res.json()["id"]
+
+    # Черновик: сохранить и прочитать в detail
+    r = await client.put(
+        f"/api/admin/applications/{app_id}/draft-reply", headers=VALID,
+        json={"draft": "Здравствуйте! Готов начать в понедельник."},
+    )
+    assert r.status_code == 200
+    detail = (await client.get(
+        f"/api/admin/applications/{app_id}", headers=VALID)).json()
+    assert "в понедельник" in detail["draft_reply"]
+
+    # Сохранение ответа ассистента (фронт зовёт после стрима)
+    r = await client.post(
+        f"/api/admin/applications/{app_id}/assistant-messages", headers=VALID,
+        json={"content": "Вот мой совет: сначала запросите ТЗ."},
+    )
+    assert r.status_code == 201
+    assert r.json()["role"] == "assistant"
+
+    # История
+    r = await client.get(
+        f"/api/admin/applications/{app_id}/assistant-messages", headers=VALID)
+    assert len(r.json()) == 1
+
+    # Очистка треда — отклик жив, тред пуст
+    r = await client.delete(
+        f"/api/admin/applications/{app_id}/assistant-messages", headers=VALID)
+    assert r.status_code == 204
+    r = await client.get(
+        f"/api/admin/applications/{app_id}/assistant-messages", headers=VALID)
+    assert r.json() == []
+    detail = (await client.get(
+        f"/api/admin/applications/{app_id}", headers=VALID)).json()
+    assert detail["role"] == "Доработка магазина"  # отклик не удалён
+
+
+def test_assistant_prompt_markers_in_default():
+    """Дефолт ассистента требует ===DRAFT=== и два режима."""
+    from app.seed_defaults import DEFAULT_PROMPT_ASSISTANT
+
+    assert "===DRAFT===" in DEFAULT_PROMPT_ASSISTANT
+    assert "ДВА РЕЖИМА" in DEFAULT_PROMPT_ASSISTANT
+
+
+def test_response_edit_prompt_mixed_mode():
+    """Дефолт правки отклика — смешанный режим (вопросы без маркеров)."""
+    from app.seed_defaults import DEFAULT_PROMPT_RESPONSE_EDIT
+
+    assert "ДВА РЕЖИМА" in DEFAULT_PROMPT_RESPONSE_EDIT
+    assert "===COVER===" in DEFAULT_PROMPT_RESPONSE_EDIT
+    assert "только его маркер" in DEFAULT_PROMPT_RESPONSE_EDIT

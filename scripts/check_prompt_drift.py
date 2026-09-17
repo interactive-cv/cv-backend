@@ -30,6 +30,7 @@ import urllib.request
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.seed_defaults import (
+    DEFAULT_PROMPT_ASSISTANT,
     DEFAULT_PROMPT_CHAT,
     DEFAULT_PROMPT_CV_EDIT,
     DEFAULT_PROMPT_GENERATE,
@@ -46,6 +47,7 @@ PROMPTS = {
     "prompt_generate_contest": (DEFAULT_PROMPT_GENERATE_CONTEST, "Генерация (конкурс)"),
     "prompt_cv_edit": (DEFAULT_PROMPT_CV_EDIT, "AI-правка CV"),
     "prompt_negotiation": (DEFAULT_PROMPT_NEGOTIATION, "Помощник переговоров"),
+    "prompt_assistant": (DEFAULT_PROMPT_ASSISTANT, "Ассистент-тред"),
 }
 
 
