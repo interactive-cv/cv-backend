@@ -705,3 +705,52 @@ async def test_pdf_preview_empty_markdown_400(client, session):
         "/api/admin/pdf/preview", headers=VALID, json={"markdown": "   "}
     )
     assert res.status_code == 400
+
+
+# ===== Тесты cover_limit и Telegram в промптах =====
+
+
+@pytest.mark.asyncio
+async def test_cover_limit_in_generate_prompt(client, session):
+    """cover_limit попадает в собранный промпт генерации."""
+    from app.llm.generate_prompt import build_generate_prompt
+    from app.models import MasterCV
+
+    session.add(MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV\nDev", version=1))
+    await session.commit()
+
+    prompt = await build_generate_prompt(
+        session, "# CV\nDev", "Заказ", [], "freelance", cover_limit=5000,
+    )
+    assert "НЕ БОЛЕЕ 5000" in prompt
+
+
+@pytest.mark.asyncio
+async def test_no_cover_limit_no_block(client, session):
+    """Без cover_limit блок лимита не появляется."""
+    from app.llm.generate_prompt import build_generate_prompt
+    from app.models import MasterCV
+
+    session.add(MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV\nDev", version=1))
+    await session.commit()
+
+    prompt = await build_generate_prompt(
+        session, "# CV\nDev", "Заказ", [], "freelance",
+    )
+    assert "ЛИМИТ ПЛОЩАДКИ" not in prompt
+
+
+def test_telegram_in_fl_prompts_defaults():
+    """Freelance и contest дефолты содержат Telegram-контакт;
+    kwork — категорически нет (запрет биржи), vacancy — нет (не FL)."""
+    from app.seed_defaults import (
+        DEFAULT_PROMPT_GENERATE,
+        DEFAULT_PROMPT_GENERATE_CONTEST,
+        DEFAULT_PROMPT_GENERATE_FREELANCE,
+        DEFAULT_PROMPT_GENERATE_KWORK,
+    )
+
+    assert "@vrg18" in DEFAULT_PROMPT_GENERATE_FREELANCE
+    assert "@vrg18" in DEFAULT_PROMPT_GENERATE_CONTEST
+    assert "@vrg18" not in DEFAULT_PROMPT_GENERATE_KWORK
+    assert "@vrg18" not in DEFAULT_PROMPT_GENERATE
