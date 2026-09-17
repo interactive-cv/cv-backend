@@ -223,7 +223,7 @@ async def generate_cv(
     prompt = await build_generate_prompt(
         session, master.full_markdown, body.vacancy_text, body.selected_projects,
         body.kind, body.spec_text, body.extra_instruction, body.platform,
-        body.budget, body.budget_max,
+        body.budget, body.budget_max, body.cover_limit,
     )
     chunks: list[str] = []
     async for token in stream_chat(
@@ -273,6 +273,14 @@ async def edit_chat(
         instruction=body.instruction,
         dialog_history=dialog_history,
     )
+    # Лимит символов площадки: правки не должны раздувать отклик за пределы
+    # допуска биржи. Добавляется к промпту поверх шаблона (шаблон в БД не трогаем).
+    if body.cover_limit:
+        prompt += (
+            f"\n\nЛИМИТ ПЛОЩАДКИ: итоговый cover letter — не более "
+            f"{body.cover_limit} символов (сейчас {len(body.cover_letter)}). "
+            f"Если правки удлиняют текст — урежь менее существенное, чтобы уложиться."
+        )
 
     async def gen():
         try:

@@ -23,6 +23,7 @@ class GenerateIn(BaseModel):
     estimate: str | None = None
     extra_instruction: str | None = None
     temperature: float = 0.8
+    cover_limit: int | None = None
 
 
 class GenerateOut(BaseModel):
@@ -44,6 +45,7 @@ class EditChatIn(BaseModel):
     vacancy_text: str = ""
     history: list[dict] = []
     temperature: float = 0.6
+    cover_limit: int | None = None
 
 
 class ApplicationCreateIn(BaseModel):
