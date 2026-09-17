@@ -923,3 +923,76 @@ def test_settings_contains_negotiation_prompt():
     for ph in ("{order_text}", "{spec_text}", "{response_text}",
                "{dialog_history}", "{channel}", "{instruction}"):
         assert ph in DEFAULT_PROMPT_NEGOTIATION
+
+
+# ===== Тесты экспорта заказа (JSON + ZIP) =====
+
+
+@pytest.mark.asyncio
+async def test_export_json_and_zip(client, session):
+    """Экспорт содержит все секции; ZIP — структуру папки проекта."""
+    import io
+    import zipfile as zf
+
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "FL", "role": "Бот для такси",
+            "vacancy_text": "Нужен бот парсинга заказов",
+            "cover_letter": "Сделаю бота за неделю", "cv_markdown": "# CV бота",
+            "slug": "export-test-1", "kind": "freelance", "budget": "30000",
+            "spec_text": "ТЗ: telebot, 3 команды",
+            "estimate": "Оценка стоимости: 25-40k\nРиски заказа: размытое ТЗ",
+        },
+    )
+    app_id = res.json()["id"]
+
+    # Диалог
+    await client.post(
+        f"/api/admin/applications/{app_id}/negotiation", headers=VALID,
+        json={"role": "customer", "channel": "fl", "content": "Когда начнёте?"},
+    )
+    await client.post(
+        f"/api/admin/applications/{app_id}/negotiation", headers=VALID,
+        json={"role": "me", "channel": "telegram", "content": "В понедельник"},
+    )
+
+    # JSON
+    r = await client.get(f"/api/admin/applications/{app_id}/export", headers=VALID)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["meta"]["role"] == "Бот для такси"
+    assert data["meta"]["budget"] == "30000"
+    assert "бот парсинга" in data["vacancy_text"]
+    assert len(data["negotiation"]) == 2
+    assert "Риски заказа" in data["estimate"]
+
+    # ZIP
+    r = await client.get(f"/api/admin/applications/{app_id}/export.zip", headers=VALID)
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/zip"
+    assert r.content[:2] == b"PK"
+    with zf.ZipFile(io.BytesIO(r.content)) as z:
+        names = set(z.namelist())
+    assert "AGENTS.md" in names
+    assert "order.md" in names
+    assert "response.md" in names
+    assert "estimate.md" in names
+    assert "spec.md" in names
+    assert "dialog.md" in names
+    with zf.ZipFile(io.BytesIO(r.content)) as z:
+        agents = z.read("AGENTS.md").decode()
+        assert "Карта файлов" in agents
+        dialog = z.read("dialog.md").decode()
+        assert "Когда начнёте?" in dialog and "В понедельник" in dialog
+
+
+@pytest.mark.asyncio
+async def test_export_not_found_404(client, session):
+    import uuid
+
+    r = await client.get(
+        f"/api/admin/applications/{uuid.uuid4()}/export", headers=VALID
+    )
+    assert r.status_code == 404
