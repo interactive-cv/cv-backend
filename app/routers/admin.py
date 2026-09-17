@@ -41,6 +41,7 @@ from app.schemas.application import (
     EditChatIn,
     GenerateIn,
     GenerateOut,
+    PdfPreviewIn,
 )
 from app.schemas.artifact import ArtifactOut
 from app.schemas.cv import CVVariantCreateIn
@@ -706,6 +707,27 @@ async def delete_application(
     return {"id": str(a.id), "deleted": True}
 
 
+def _pdf_response(pdf_bytes: bytes, filename: str) -> Response:
+    """PDF-ответ с ASCII-именем файла (HTTP-заголовки — latin-1, без кириллицы)."""
+    import unicodedata
+
+    ascii_name = (
+        unicodedata.normalize("NFKD", filename)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+        .replace(" ", "_")
+        .replace("/", "-")
+        or "CV"
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{ascii_name}"',
+        },
+    )
+
+
 @router.get("/applications/{app_id}/pdf")
 async def download_cv_pdf(
     app_id: str, session: AsyncSession = Depends(get_session)
@@ -739,28 +761,25 @@ async def download_cv_pdf(
     except RuntimeError as e:
         raise AppError("server_error", str(e), 500)
 
-    # filename — ASCII only (HTTP-заголовки в latin-1). Кириллицу транслитерируем.
-    import unicodedata
+    return _pdf_response(pdf_bytes, f"CV_{a.company or a.role}_{a.role}.pdf")
 
-    def _ascii(s: str) -> str:
-        """Транслитерация кириллицы/юникода в ASCII для HTTP-заголовка."""
-        return (
-            unicodedata.normalize("NFKD", s)
-            .encode("ascii", "ignore")
-            .decode("ascii")
-            .replace(" ", "_")
-            .replace("/", "-")
-            or "CV"
-        )
 
-    filename = f"CV_{_ascii(a.company or a.role)}_{_ascii(a.role)}.pdf"
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-        },
-    )
+@router.post("/pdf/preview")
+async def preview_cv_pdf(body: PdfPreviewIn) -> Response:
+    """PDF из произвольного markdown — экспорт текущего содержимого редактора.
+
+    В отличие от GET /applications/{id}/pdf, берёт markdown из тела запроса:
+    можно выгрузить несохранённые правки (и CV ещё не созданного отклика).
+    """
+    from app.services.pdf_export import generate_cv_pdf
+
+    if not body.markdown.strip():
+        raise AppError("bad_request", "Пустой markdown", 400)
+    try:
+        pdf_bytes = generate_cv_pdf(body.markdown, body.title or "CV")
+    except RuntimeError as e:
+        raise AppError("server_error", str(e), 500)
+    return _pdf_response(pdf_bytes, f"CV_{body.title or 'export'}.pdf")
 
 
 # ===== Interviews: этапы собеседований =====

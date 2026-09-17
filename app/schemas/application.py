@@ -72,6 +72,14 @@ class ApplicationCreateIn(BaseModel):
     platform: str | None = None
 
 
+class PdfPreviewIn(BaseModel):
+    """PDF из произвольного markdown — экспорт текущего редактора CV
+    (без сохранения в БД)."""
+
+    markdown: str
+    title: str | None = None
+
+
 class ApplicationUpdateIn(BaseModel):
     """Редактирование отклика."""
 
