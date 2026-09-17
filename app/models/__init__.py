@@ -6,7 +6,8 @@ from app.models.cv_variant import CVVariant, CVVariantStatus
 from app.models.interview import Interview
 from app.models.link_hit import LinkHit
 from app.models.master_cv import MasterCV
+from app.models.negotiation import NegotiationMessage
 from app.models.project import Project
 from app.models.short_link import ShortLink
 
-__all__ = ["CONFIG_KEYS", "Application", "ApplicationKind", "ApplicationStatus", "Artifact", "CVVariant", "CVVariantStatus", "ChatMessage", "ChatSession", "ConfigText", "Interview", "LinkHit", "MasterCV", "Project", "ShortLink"]
+__all__ = ["CONFIG_KEYS", "Application", "ApplicationKind", "ApplicationStatus", "Artifact", "CVVariant", "CVVariantStatus", "ChatMessage", "ChatSession", "ConfigText", "Interview", "LinkHit", "MasterCV", "NegotiationMessage", "Project", "ShortLink"]

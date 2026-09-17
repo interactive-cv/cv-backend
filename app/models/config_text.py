@@ -45,4 +45,5 @@ CONFIG_KEYS = [
     "prompt_cv_edit",
     "prompt_response_edit",
     "prompt_generate_kwork",
+    "prompt_negotiation",
 ]

@@ -31,6 +31,7 @@ from app.models import (
     Interview,
     LinkHit,
     MasterCV,
+    NegotiationMessage,
     ShortLink,
 )
 from app.schemas.application import (
@@ -51,6 +52,12 @@ from app.schemas.interview import (
     InterviewUpdateIn,
 )
 from app.schemas.link import LinkCreateIn
+from app.schemas.negotiation import (
+    NegotiationCreateIn,
+    NegotiationMessageOut,
+    NegotiationUpdateIn,
+    SuggestReplyIn,
+)
 from app.schemas.settings import (
     ConfigTextOut,
     CvEditApplyIn,
@@ -1010,6 +1017,168 @@ async def delete_artifact(
     await session.commit()
 
 
+# ===== Negotiation: переговоры с заказчиком по отклику =====
+
+
+async def _get_app_or_404(session: AsyncSession, app_id: str) -> Application:
+    a = (
+        await session.execute(
+            select(Application).where(Application.id == uuid.UUID(app_id))
+        )
+    ).scalar_one_or_none()
+    if not a:
+        raise AppError("not_found", "Отклик не найден", 404)
+    return a
+
+
+@router.get("/applications/{app_id}/negotiation")
+async def list_negotiation(
+    app_id: str, session: AsyncSession = Depends(get_session)
+) -> list[NegotiationMessageOut]:
+    """Лента переговоров по отклику (хронология)."""
+    await _get_app_or_404(session, app_id)
+    rows = (
+        await session.execute(
+            select(NegotiationMessage)
+            .where(NegotiationMessage.application_id == uuid.UUID(app_id))
+            .order_by(NegotiationMessage.created_at, NegotiationMessage.id)
+        )
+    ).scalars().all()
+    return [NegotiationMessageOut(
+        id=str(m.id), role=m.role, channel=m.channel,
+        content=m.content, created_at=m.created_at,
+    ) for m in rows]
+
+
+@router.post("/applications/{app_id}/negotiation", status_code=201)
+async def add_negotiation_message(
+    app_id: str,
+    body: NegotiationCreateIn,
+    session: AsyncSession = Depends(get_session),
+) -> NegotiationMessageOut:
+    """Добавить сообщение: заказчика (копипаст с площадки) или свой ответ."""
+    await _get_app_or_404(session, app_id)
+    if not body.content.strip():
+        raise AppError("bad_request", "Пустое сообщение", 400)
+    m = NegotiationMessage(
+        application_id=uuid.UUID(app_id),
+        role=body.role,
+        channel=body.channel,
+        content=body.content.strip(),
+    )
+    session.add(m)
+    await session.commit()
+    return NegotiationMessageOut(
+        id=str(m.id), role=m.role, channel=m.channel,
+        content=m.content, created_at=m.created_at,
+    )
+
+
+@router.put("/negotiation/{message_id}")
+async def update_negotiation_message(
+    message_id: str,
+    body: NegotiationUpdateIn,
+    session: AsyncSession = Depends(get_session),
+) -> NegotiationMessageOut:
+    """Правка сообщения (текст/канал)."""
+    m = await session.get(NegotiationMessage, uuid.UUID(message_id))
+    if not m:
+        raise AppError("not_found", "Сообщение не найдено", 404)
+    if body.content is not None:
+        if not body.content.strip():
+            raise AppError("bad_request", "Пустое сообщение", 400)
+        m.content = body.content.strip()
+    if body.channel is not None:
+        m.channel = body.channel
+    await session.commit()
+    return NegotiationMessageOut(
+        id=str(m.id), role=m.role, channel=m.channel,
+        content=m.content, created_at=m.created_at,
+    )
+
+
+@router.delete("/negotiation/{message_id}", status_code=204)
+async def delete_negotiation_message(
+    message_id: str, session: AsyncSession = Depends(get_session)
+) -> None:
+    m = await session.get(NegotiationMessage, uuid.UUID(message_id))
+    if not m:
+        raise AppError("not_found", "Сообщение не найдено", 404)
+    await session.delete(m)
+    await session.commit()
+
+
+@router.post("/applications/{app_id}/suggest-reply")
+async def suggest_reply(
+    app_id: str,
+    body: SuggestReplyIn,
+    session: AsyncSession = Depends(get_session),
+) -> StreamingResponse:
+    """Черновик ответа заказчику (стриминг glm).
+
+    Контекст: заказ + ТЗ + отправленный отклик + история переговоров.
+    Последнее сообщение заказчика — то, на что отвечаем.
+    """
+    from app.seed_defaults import DEFAULT_PROMPT_NEGOTIATION
+
+    a = await _get_app_or_404(session, app_id)
+
+    template = (
+        await get_config_value(session, "prompt_negotiation")
+        or DEFAULT_PROMPT_NEGOTIATION
+    )
+
+    messages = (
+        await session.execute(
+            select(NegotiationMessage)
+            .where(NegotiationMessage.application_id == a.id)
+            .order_by(NegotiationMessage.created_at, NegotiationMessage.id)
+        )
+    ).scalars().all()
+    if not messages:
+        raise AppError(
+            "bad_request",
+            "Переписка пуста — добавьте сообщение заказчика, на что отвечать",
+            400,
+        )
+    if messages[-1].role != "customer":
+        raise AppError(
+            "bad_request",
+            "Последнее сообщение в переписке — ваше. Добавьте новое сообщение "
+            "заказчика, прежде чем просить черновик ответа",
+            400,
+        )
+
+    channel_names = {"fl": "FL.ru", "telegram": "Telegram", "email": "Email"}
+    dialog_parts = []
+    for m in messages[-40:]:  # последние 40 сообщений — контекст целиком влезает
+        who = "ЗАКАЗЧИК" if m.role == "customer" else "Я"
+        dialog_parts.append(f"[{m.created_at:%d.%m %H:%M}] {who}: {m.content}")
+    dialog_history = "\n".join(dialog_parts)
+
+    prompt = template.format(
+        order_text=a.vacancy_text,
+        spec_text=(a.spec_text or "").strip() or "(не предоставлено)",
+        response_text=a.cover_letter or "(отклик не сохранён)",
+        dialog_history=dialog_history,
+        channel=channel_names.get(messages[-1].channel, messages[-1].channel),
+        instruction=(body.instruction or "").strip() or "(нет)",
+    )
+
+    async def gen():
+        try:
+            async for token in stream_chat(
+                [{"role": "user", "content": "Напиши черновик ответа заказчику"}],
+                prompt,
+                temperature=body.temperature,
+            ):
+                yield token
+        except Exception:
+            yield "\n\n[Ошибка при обращении к LLM. Попробуйте ещё раз.]"
+
+    return StreamingResponse(gen(), media_type="text/plain")
+
+
 # ===== Instructions: лента доп. инструкций для переиспользования =====
 
 
@@ -1082,6 +1251,9 @@ async def get_settings(
         ),
         prompt_generate_kwork=_config_row(
             rows.get("prompt_generate_kwork"), "prompt_generate_kwork"
+        ),
+        prompt_negotiation=_config_row(
+            rows.get("prompt_negotiation"), "prompt_negotiation"
         ),
     )
 

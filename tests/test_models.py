@@ -54,7 +54,7 @@ async def test_all_tables_creatable(session):
     assert set(Base.metadata.tables) == {
         "master_cv", "cv_variant", "short_link", "link_hit", "project",
         "application", "interview", "artifact", "config_text",
-        "chat_session", "chat_message",
+        "chat_session", "chat_message", "negotiation_message",
     }
 
     master = MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV", version=1)
