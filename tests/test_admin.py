@@ -754,3 +754,54 @@ def test_telegram_in_fl_prompts_defaults():
     assert "@vrg18" in DEFAULT_PROMPT_GENERATE_CONTEST
     assert "@vrg18" not in DEFAULT_PROMPT_GENERATE_KWORK
     assert "@vrg18" not in DEFAULT_PROMPT_GENERATE
+
+
+# ===== Тесты ESTIMATE: адекватность и риски =====
+
+
+def test_estimate_risk_fields_in_defaults():
+    """Все три генерирующих промпта (freelance/contest/kwork) требуют
+    в ===ESTIMATE=== адекватность заказчика и риски."""
+    from app.seed_defaults import (
+        DEFAULT_PROMPT_GENERATE_CONTEST,
+        DEFAULT_PROMPT_GENERATE_FREELANCE,
+        DEFAULT_PROMPT_GENERATE_KWORK,
+    )
+
+    for name, p in [
+        ("freelance", DEFAULT_PROMPT_GENERATE_FREELANCE),
+        ("contest", DEFAULT_PROMPT_GENERATE_CONTEST),
+        ("kwork", DEFAULT_PROMPT_GENERATE_KWORK),
+    ]:
+        assert "Адекватность заказчика" in p, name
+        assert "Риски заказа" in p, name
+        assert "Риски заказчика" in p, name
+
+
+def test_parse_estimate_with_risk_fields():
+    """Парсер принимает расширенный ESTIMATE — все строки попадают в estimate."""
+    from app.llm.generate_prompt import parse_generate_response
+
+    raw = """===CV===
+# CV
+===COVER===
+Отклик
+===END===
+===ESTIMATE===
+Оценка стоимости: 40 000-90 000 ₽
+Оценка срока: 2-3 недели
+Адекватность заказчика: средняя — бюджет ниже объёма
+Риски заказа: размытое ТЗ, чужой код
+Риски заказчика: возможны бесконечные правки
+Комментарий: брать с оговорками"""
+    cv, cover, estimate = parse_generate_response(raw)
+    assert cv == "# CV"
+    assert cover == "Отклик"
+    assert estimate is not None
+    for line in (
+        "Адекватность заказчика",
+        "Риски заказа",
+        "Риски заказчика",
+        "Комментарий",
+    ):
+        assert line in estimate
