@@ -45,7 +45,7 @@ from app.schemas.application import (
     GenerateOut,
     PdfPreviewIn,
 )
-from app.schemas.artifact import ArtifactOut
+from app.schemas.artifact import ArtifactOut, StagedUploadOut
 from app.schemas.cv import CVVariantCreateIn
 from app.schemas.interview import (
     InterviewCreateIn,
@@ -422,6 +422,29 @@ async def create_application(
         ),
     )
     session.add(app)
+    await session.flush()
+
+    # Привязываем staged-файлы (загружены на первом экране): переносим
+    # из artifacts/staged/ в artifacts/{app_id}/ и ставим FK.
+    if body.uploads:
+        app_dir = Path("artifacts") / str(app.id)
+        app_dir.mkdir(parents=True, exist_ok=True)
+        for upload_id in body.uploads:
+            try:
+                uid = uuid.UUID(upload_id)
+            except ValueError:
+                continue
+            art = await session.get(Artifact, uid)
+            if art is None or art.application_id is not None:
+                continue  # не staged — пропускаем молча
+            new_path = app_dir / Path(art.stored_path).name
+            try:
+                Path(art.stored_path).rename(new_path)
+                art.stored_path = str(new_path)
+            except OSError:
+                pass  # файл не нашли — оставляем старый путь, запись всё равно привяжем
+            art.application_id = app.id
+
     await session.commit()
     result: dict = {"id": str(app.id), "slug": app.slug}
     if short_url:
@@ -1053,6 +1076,119 @@ async def delete_artifact(
         Path(art.stored_path).unlink(missing_ok=True)
     except Exception:
         pass  # файл уже удалён — не критично
+    await session.delete(art)
+    await session.commit()
+
+
+# ===== Staged uploads: файлы до создания заявки (первый экран отклика) =====
+
+STAGED_MAX_AGE_DAYS = 7
+
+
+def _extract_best_effort(filename: str, content: bytes) -> tuple[str | None, str | None]:
+    """Текст из файла, если умеем: pdf/docx — экстрактором, txt-семейство —
+    utf-8. Возвращает (text, error): оба None = тип не текстовый (это норма)."""
+    name = (filename or "").lower()
+    from app.services.spec_extractor import extract_spec
+
+    if name.endswith((".pdf", ".docx")):
+        try:
+            text, _, _ = extract_spec(filename, content)
+            return text, None
+        except ValueError as e:
+            return None, str(e)
+    if name.endswith((".txt", ".md", ".csv", ".json", ".xml", ".yml", ".yaml")):
+        try:
+            return content.decode("utf-8").strip() or None, None
+        except UnicodeDecodeError:
+            return None, "не удалось прочитать как UTF-8 текст"
+    return None, None  # бинарный тип (изображение, архив и т.п.) — просто храним
+
+
+@router.post("/uploads", status_code=201)
+async def staged_uploads(
+    files: list[UploadFile] = File(...),
+    session: AsyncSession = Depends(get_session),
+) -> list[StagedUploadOut]:
+    """Загрузка файлов ДО создания заявки (первый экран нового отклика).
+
+    Любые типы: файл сохраняется сразу (единое хранилище артефактов),
+    текст извлекается best-effort (pdf/docx/txt-семейство). При создании
+    заявки файлы привязываются (ApplicationCreateIn.uploads).
+    Попутно чистим staged-файлы старше 7 дней (не привязанные).
+    """
+    if not files:
+        raise AppError("bad_request", "Не передано файлов", 400)
+
+    # Чистка забытых staged-файлов
+    cutoff = datetime.now(UTC) - timedelta(days=STAGED_MAX_AGE_DAYS)
+    stale = (
+        await session.execute(
+            select(Artifact).where(
+                Artifact.application_id.is_(None),
+                Artifact.created_at < cutoff,
+            )
+        )
+    ).scalars().all()
+    for art in stale:
+        try:
+            Path(art.stored_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+        await session.delete(art)
+
+    results: list[StagedUploadOut] = []
+    staged_dir = Path("artifacts") / "staged"
+    staged_dir.mkdir(parents=True, exist_ok=True)
+    max_bytes = settings.artifact_max_size_mb * 1024 * 1024
+    for file in files:
+        filename = _sanitize_filename(file.filename or "file") or "file"
+        content = await file.read()
+        if len(content) > max_bytes:
+            results.append(StagedUploadOut(
+                id="", filename=filename, size_bytes=len(content),
+                error=f"файл больше {settings.artifact_max_size_mb} MB — не загружен",
+            ))
+            continue
+        code = _generate_artifact_code()
+        stored_path = staged_dir / f"{code}_{filename}"
+        stored_path.write_bytes(content)
+        art = Artifact(
+            application_id=None,
+            code=code,
+            filename=filename,
+            stored_path=str(stored_path),
+            mime_type=file.content_type,
+            size_bytes=len(content),
+        )
+        session.add(art)
+        await session.flush()
+        text, error = _extract_best_effort(filename, content)
+        results.append(StagedUploadOut(
+            id=str(art.id), filename=filename, size_bytes=len(content),
+            text=text, error=error,
+        ))
+    await session.commit()
+    return results
+
+
+@router.delete("/uploads/{artifact_id}", status_code=204)
+async def delete_staged_upload(
+    artifact_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Убрать staged-файл (до создания заявки). Привязанные — через /artifacts."""
+    art = await session.get(Artifact, uuid.UUID(artifact_id))
+    if not art:
+        raise AppError("not_found", "Файл не найден", 404)
+    if art.application_id is not None:
+        raise AppError(
+            "bad_request", "Файл уже привязан к заявке — удаляйте в артефактах", 400,
+        )
+    try:
+        Path(art.stored_path).unlink(missing_ok=True)
+    except Exception:
+        pass
     await session.delete(art)
     await session.commit()
 

@@ -26,8 +26,10 @@ class Artifact(Base):
     __tablename__ = "artifact"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    application_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("application.id", ondelete="CASCADE"), nullable=False
+    # NULL = staged-файл: загружен на первом экране нового отклика,
+    # привязка к заявке произойдёт при её создании (uploads: [id]).
+    application_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("application.id", ondelete="CASCADE"), nullable=True
     )
     # 6-символьный код для публичной ссылки /dl/{code}
     code: Mapped[str] = mapped_column(Text, unique=True, index=True)

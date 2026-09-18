@@ -1066,3 +1066,85 @@ def test_response_edit_prompt_mixed_mode():
     assert "ДВА РЕЖИМА" in DEFAULT_PROMPT_RESPONSE_EDIT
     assert "===COVER===" in DEFAULT_PROMPT_RESPONSE_EDIT
     assert "только его маркер" in DEFAULT_PROMPT_RESPONSE_EDIT
+
+
+# ===== Тесты staged uploads (файлы до создания заявки) =====
+
+
+@pytest.mark.asyncio
+async def test_staged_uploads_flow(client, session):
+    """Файлы любого типа сохраняются сразу; текст best-effort;
+    при создании заявки — привязываются и переезжают."""
+    import io
+
+    from docx import Document
+
+    d = Document()
+    d.add_heading("ТЗ проекта", 0)
+    d.add_paragraph("Требование: три экрана")
+    buf = io.BytesIO()
+    d.save(buf)
+
+    res = await client.post(
+        "/api/admin/uploads",
+        headers=VALID,
+        files=[
+            ("files", ("spec.docx", buf.getvalue(), "application/octet-stream")),
+            ("files", ("notes.txt", "простой текст заметки".encode(), "text/plain")),
+            ("files", ("schema.png", b"\x89PNG fake image", "image/png")),
+            ("files", ("broken.docx", b"garbage not a zip", "application/octet-stream")),
+        ],
+    )
+    assert res.status_code == 201
+    out = res.json()
+    by_name = {r["filename"]: r for r in out}
+
+    assert "Требование: три экрана" in by_name["spec.docx"]["text"]
+    assert by_name["spec.docx"]["error"] is None
+    assert "заметки" in by_name["notes.txt"]["text"]
+    assert by_name["schema.png"]["text"] is None  # бинарный — просто хранится
+    assert by_name["schema.png"]["error"] is None
+    assert by_name["broken.docx"]["text"] is None
+    assert "старый формат" in by_name["broken.docx"]["error"] or "повреждён" in by_name["broken.docx"]["error"]
+
+
+    ids = [r["id"] for r in out if r["id"]]
+    assert len(ids) == 4  # все сохранены (битый docx — тоже, текста нет)
+
+    # Создаём заявку с привязкой
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "FL", "role": "Схема с файлами",
+            "vacancy_text": "заказ", "cover_letter": "ok",
+            "cv_markdown": "# CV", "slug": "staged-uploads-1",
+            "kind": "freelance", "uploads": ids,
+        },
+    )
+    assert res.status_code == 201
+    app_id = res.json()["id"]
+    detail = (await client.get(
+        f"/api/admin/applications/{app_id}", headers=VALID)).json()
+    filenames = {a["filename"] for a in detail["artifacts"]}
+    assert {"spec.docx", "notes.txt", "schema.png", "broken.docx"} <= filenames
+    for a in detail["artifacts"]:
+        assert a["application_id"] == app_id
+
+    # После привязки удалить как staged — нельзя
+    aid = detail["artifacts"][0]["id"]
+    r = await client.delete(f"/api/admin/uploads/{aid}", headers=VALID)
+    assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_staged_upload_delete_before_create(client, session):
+    """Staged-файл можно убрать до создания заявки."""
+    res = await client.post(
+        "/api/admin/uploads",
+        headers=VALID,
+        files=[("files", ("tmp.txt", b"temporary", "text/plain"))],
+    )
+    upload_id = res.json()[0]["id"]
+    r = await client.delete(f"/api/admin/uploads/{upload_id}", headers=VALID)
+    assert r.status_code == 204
