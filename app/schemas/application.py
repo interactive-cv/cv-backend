@@ -72,6 +72,8 @@ class ApplicationCreateIn(BaseModel):
     generated_prompt: str | None = None
     extra_instruction: str | None = None
     platform: str | None = None
+    # Staged-загрузки (POST /uploads) — привязать к создаваемой заявке
+    uploads: list[str] = []
 
 
 class PdfPreviewIn(BaseModel):
