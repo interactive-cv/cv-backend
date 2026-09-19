@@ -46,6 +46,9 @@ class EditChatIn(BaseModel):
     history: list[dict] = []
     temperature: float = 0.6
     cover_limit: int | None = None
+    # chat — диалог: вопрос/обсуждение → только текстовый ответ.
+    # edit — команда: перегенерация текстов (маркеры ===CV===/===COVER===).
+    mode: Literal["chat", "edit"] = "chat"
 
 
 class ApplicationCreateIn(BaseModel):

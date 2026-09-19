@@ -1148,3 +1148,15 @@ async def test_staged_upload_delete_before_create(client, session):
     upload_id = res.json()[0]["id"]
     r = await client.delete(f"/api/admin/uploads/{upload_id}", headers=VALID)
     assert r.status_code == 204
+
+
+def test_edit_chat_mode_default_chat():
+    """EditChatIn: по умолчанию режим chat — диалог, не правка."""
+    from app.schemas.application import EditChatIn
+
+    body = EditChatIn(cv_markdown="# c", cover_letter="x", instruction="вопрос")
+    assert body.mode == "chat"
+    body2 = EditChatIn(
+        cv_markdown="# c", cover_letter="x", instruction="убери 1С", mode="edit"
+    )
+    assert body2.mode == "edit"
