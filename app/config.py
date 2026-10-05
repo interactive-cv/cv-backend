@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     site_url: str = "https://cv.example.com"
     zai_api_key: str = ""
     zai_api_base: str = "https://api.z.ai/api/coding/paas/v4"
-    zai_model: str = "glm-5.2"
+    zai_model: str = "glm-5.3"
     chat_rate_per_hour: int = 50
     chat_rate_per_day: int = 300
     artifact_max_size_mb: int = 100

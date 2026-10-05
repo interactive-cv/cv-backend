@@ -188,7 +188,7 @@ curl -s https://your-domain.com/ | grep -o "Your Name"     # → SSR отрен�
 | `ALLOWED_ORIGINS` | ✅ | CORS origins (через запятую) |
 | `ZAI_API_KEY` | ✅ | Ключ z.ai для AI-функций |
 | `ZAI_API_BASE` | по умолч. | `https://api.z.ai/api/coding/paas/v4` (coding-эндпоинт!) |
-| `ZAI_MODEL` | по умолч. | `glm-5.2` |
+| `ZAI_MODEL` | по умолч. | `glm-5.3` |
 | `CHAT_RATE_PER_HOUR` | по умолч. | `50` — лимит сообщений чата на IP в час |
 | `CHAT_RATE_PER_DAY` | по умолч. | `300` — лимит сообщений чата на IP в день |
 | `ARTIFACT_MAX_SIZE_MB` | по умолч. | `100` — макс. размер загружаемого артефакта (APK и др.) |
