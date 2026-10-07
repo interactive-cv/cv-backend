@@ -1491,12 +1491,23 @@ def _split_sections(text: str) -> list[tuple[str, str, int]]:
     cur_start = 0
     pos = 0
     buf: list[str] = []
-    for line in text.split("\n"):
+    skip_next = False
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        if skip_next:
+            # docx-извлечение часто даёт заголовок строкой без «#» следом
+            # за стилевым — не тащим дубль в тело секции.
+            skip_next = False
+            pos += len(line) + 1
+            continue
         if _HEADING_RE.match(line):
             if buf:
                 sections.append((cur_title, "\n".join(buf), cur_start))
             cur_title = line.lstrip("#").strip() or "(без названия)"
             cur_start = pos
+            peek = lines[i + 1].strip() if i + 1 < len(lines) else ""
+            if peek == cur_title:
+                skip_next = True
             buf = [line]
         else:
             buf.append(line)
