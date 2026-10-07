@@ -33,6 +33,9 @@ sed -i "s|SSL_CHAIN_CERT|${LE_SSL_CHAIN_CERT}|g" /etc/nginx/conf.d/*.conf 2>/dev
 #replace LE_FQDN
 sed -i "s|LE_FQDN|${LE_FQDN}|g" /etc/nginx/conf.d/*.conf 2>/dev/null
 
+#replace CV_FQDN (домен сайта CV; по умолчанию — домены шаблона)
+sed -i "s|CV_FQDN|${CV_FQDN:-cv.example.com example.com}|g" /etc/nginx/conf.d/*.conf 2>/dev/null
+
 #generate dhparams.pem
 if [ ! -f /etc/nginx/ssl/dhparams.pem ]; then
     echo "make dhparams"

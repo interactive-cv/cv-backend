@@ -29,6 +29,9 @@ services:
       - LETSENCRYPT=true
       - LE_EMAIL=${LE_EMAIL:-you@example.com}
       - LE_FQDN=${LE_FQDN:-cv.example.com}
+      # Домен сайта CV для nginx (шаблонные домены по умолчанию;
+      # персональная сборка переопределяет в .env, например cv.libera.pro)
+      - CV_FQDN=${CV_FQDN:-cv.example.com example.com}
       - SSL_CERT=cv-le-crt.pem
       - SSL_KEY=cv-le-key.pem
       - SSL_CHAIN_CERT=cv-le-chain-crt.pem
