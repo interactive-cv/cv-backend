@@ -1243,5 +1243,7 @@ def test_smart_view_dedupes_repeated_heading():
 
     doc = "## 1. Заголовок\n1. Заголовок\nтекст секции"
     secs = _split_sections(doc)
-    body = secs[1][1] if len(secs) > 1 else ""
-    assert body.count("Заголовок") == 1  # стилевая строка + дубль слит в одну
+    assert len(secs) == 1  # «Начало документа» пуст — не считается
+    body = secs[0][1]
+    # стилевая строка остаётся, дубль без «#» — пропущен
+    assert body == "## 1. Заголовок\nтекст секции"
