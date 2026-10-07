@@ -1055,6 +1055,7 @@ async def upload_artifact(
     stored_path = app_dir / stored_filename
     stored_path.write_bytes(content)
 
+    text, _err = _extract_best_effort(filename, content)
     artifact = Artifact(
         application_id=a.id,
         code=code,
@@ -1062,6 +1063,7 @@ async def upload_artifact(
         stored_path=str(stored_path),
         mime_type=file.content_type,
         size_bytes=len(content),
+        extracted_text=text or "",
     )
     session.add(artifact)
     await session.commit()
@@ -1123,6 +1125,22 @@ def _extract_best_effort(filename: str, content: bytes) -> tuple[str | None, str
     return None, None  # бинарный тип (изображение, архив и т.п.) — просто храним
 
 
+async def _artifact_text_cached(session: AsyncSession, art: Artifact) -> str | None:
+    """Текст артефакта для контекста LLM: из кэша БД или извлекаем on-demand.
+
+    Бинарные типы (архивы, медиа) — None (только имя файла в контексте).
+    """
+    if art.extracted_text is not None:
+        return art.extracted_text or None
+    path = Path(art.stored_path)
+    if not path.is_file():
+        return None
+    text, _err = _extract_best_effort(art.filename, path.read_bytes())
+    art.extracted_text = text or ""
+    await session.commit()
+    return text
+
+
 @router.post("/uploads", status_code=201)
 async def staged_uploads(
     files: list[UploadFile] = File(...),
@@ -1182,6 +1200,7 @@ async def staged_uploads(
         session.add(art)
         await session.flush()
         text, error = _extract_best_effort(filename, content)
+        art.extracted_text = text or ""
         results.append(StagedUploadOut(
             id=str(art.id), filename=filename, size_bytes=len(content),
             text=text, error=error,
@@ -1452,6 +1471,48 @@ async def save_draft_reply(
     return {"ok": True, "len": len(a.draft_reply or "")}
 
 
+# Лимиты текста файлов в контексте: полного ТЗ (~15-50К симв.) хватает,
+# но случайный 200-страничный документ не раздувает каждый запрос треда.
+_FILE_CTX_PER_LIMIT = 80_000
+_FILE_CTX_TOTAL_LIMIT = 160_000
+
+
+async def _files_section(session: AsyncSession, app_id: uuid.UUID) -> str:
+    """Секция ФАЙЛЫ для контекста ассистента: текст артефактов заявки.
+
+    pdf/docx/txt — содержимое (кэш в artifact.extracted_text), бинарные —
+    только имена. Пусто → секция не возвращается (в старом промпте без
+    {files_section} плейсхолдера — безопасно, format лишние ключи игнорирует).
+    """
+    arts = (
+        await session.execute(
+            select(Artifact).where(Artifact.application_id == app_id)
+        )
+    ).scalars().all()
+    if not arts:
+        return ""
+    parts: list[str] = []
+    total = 0
+    binary: list[str] = []
+    for art in arts:
+        text = await _artifact_text_cached(session, art)
+        if not text:
+            binary.append(art.filename)
+            continue
+        chunk = text[:_FILE_CTX_PER_LIMIT]
+        total += len(chunk)
+        if total > _FILE_CTX_TOTAL_LIMIT:
+            parts.append(f"=== {art.filename} ===\n(обрезано: превышен общий лимит)")
+            break
+        parts.append(f"=== {art.filename} ===\n{chunk}")
+    if not parts:
+        return ""
+    section = "ФАЙЛЫ ЗАЯВКИ (вкладка «Артефакты», текст извлечён):\n" + "\n\n".join(parts)
+    if binary:
+        section += f"\n\nБинарные файлы без текста: {', '.join(binary)}"
+    return section
+
+
 @router.post("/applications/{app_id}/assistant-chat")
 async def assistant_chat(
     app_id: str,
@@ -1494,6 +1555,7 @@ async def assistant_chat(
         response_text=a.cover_letter or "(отклик не сохранён)",
         dialog_history="\n".join(dialog_parts) or "(переписки ещё нет)",
         draft_reply=(a.draft_reply or "").strip() or "(пусто)",
+        files_section=await _files_section(session, a.id),
     )
 
     history_rows = (

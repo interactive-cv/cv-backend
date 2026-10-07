@@ -1160,3 +1160,41 @@ def test_edit_chat_mode_default_chat():
         cv_markdown="# c", cover_letter="x", instruction="убери 1С", mode="edit"
     )
     assert body2.mode == "edit"
+
+
+@pytest.mark.asyncio
+async def test_files_section_in_assistant_context(client, session):
+    """Текст артефактов заявки попадает в контекст ассистента."""
+    import uuid as u
+
+    from app.models import Artifact
+    from app.routers.admin import _files_section
+
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "FL", "role": "Веб-приложение спецификаций",
+            "vacancy_text": "заказ", "cover_letter": "ok", "cv_markdown": "# CV",
+            "slug": "assistant-files-1", "kind": "freelance",
+        },
+    )
+    app_id = u.UUID(res.json()["id"])
+
+    # Текстовый артефакт (как будто загружен) + бинарный
+    session.add(Artifact(
+        application_id=app_id, code="TXT001", filename="spec.docx",
+        stored_path="artifacts/x/spec.docx", size_bytes=10,
+        extracted_text="Требование: форма спецификации с валидацией",
+    ))
+    session.add(Artifact(
+        application_id=app_id, code="BIN001", filename="app.apk",
+        stored_path="artifacts/x/app.apk", size_bytes=10,
+        extracted_text="",
+    ))
+    await session.commit()
+
+    section = await _files_section(session, app_id)
+    assert "spec.docx" in section
+    assert "валидацией" in section
+    assert "app.apk" in section  # бинарный — именем
