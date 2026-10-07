@@ -1198,3 +1198,41 @@ async def test_files_section_in_assistant_context(client, session):
     assert "spec.docx" in section
     assert "валидацией" in section
     assert "app.apk" in section  # бинарный — именем
+
+
+def test_smart_file_view_short_file_intact():
+    from app.routers.admin import _smart_file_view
+
+    text = "## Раздел 1\nкороткий текст"
+    chunk, note = _smart_file_view(text, "вопрос", 80_000)
+    assert chunk == text and note == ""
+
+
+def test_smart_file_view_prefers_relevant_sections():
+    from app.routers.admin import _smart_file_view
+
+    filler = "обычный текст без совпадений. " * 400  # ~12К на раздел
+    doc = "\n".join([
+        "## Общая информация о проекте" + filler,
+        "## Требования к безопасности" + ("безопасность шифрование доступ. " * 300),
+        "## Интерфейсы и интеграции" + filler,
+        "## Бюджет и сроки" + filler,
+        "## Требования к отчётности" + ("отчётность выгрузка excel. " * 300),
+    ])
+    # Бюджет меньше документа → должна сработать выборка
+    budget = 30_000
+    chunk, note = _smart_file_view(doc, "как обеспечивается безопасность и шифрование", budget)
+    assert "интеллектуальная выборка" in note
+    assert "ОГЛАВЛЕНИЕ" in chunk
+    # Релевантный раздел вошёл, нерелевантный — не обязан
+    assert "Требования к безопасности" in chunk
+    assert len(chunk) <= budget + 5_000  # допуск на оглавление/пометки
+
+
+def test_smart_file_view_no_headings_fallback():
+    from app.routers.admin import _smart_file_view
+
+    text = "просто длинный текст без заголовков. " * 5000
+    chunk, note = _smart_file_view(text, "вопрос", 10_000)
+    assert "разделы не распознаны" in note
+    assert len(chunk) <= 10_000

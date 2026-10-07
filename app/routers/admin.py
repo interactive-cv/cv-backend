@@ -1,3 +1,4 @@
+import re
 import secrets
 import string
 import uuid
@@ -1476,8 +1477,103 @@ async def save_draft_reply(
 _FILE_CTX_PER_LIMIT = 80_000
 _FILE_CTX_TOTAL_LIMIT = 160_000
 
+_HEADING_RE = re.compile(r"^#{1,3}\s")
 
-async def _files_section(session: AsyncSession, app_id: uuid.UUID) -> str:
+
+def _split_sections(text: str) -> list[tuple[str, str, int]]:
+    """Разрезает текст по markdown-заголовкам 1-3 уровня.
+
+    Возвращает [(заголовок, текст_секции, позиция_в_документе)].
+    Уровень 4+ остаётся внутри секции — иначе документ рассыпется на пыль.
+    """
+    sections: list[tuple[str, str, int]] = []
+    cur_title = "Начало документа"
+    cur_start = 0
+    pos = 0
+    buf: list[str] = []
+    for line in text.split("\n"):
+        if _HEADING_RE.match(line):
+            if buf:
+                sections.append((cur_title, "\n".join(buf), cur_start))
+            cur_title = line.lstrip("#").strip() or "(без названия)"
+            cur_start = pos
+            buf = [line]
+        else:
+            buf.append(line)
+        pos += len(line) + 1
+    if buf:
+        sections.append((cur_title, "\n".join(buf), cur_start))
+    return sections
+
+
+def _smart_file_view(
+    text: str, question: str, budget: int
+) -> tuple[str, str]:
+    """Умная выборка из длинного файла под конкретный вопрос.
+
+    Возвращает (выдержка, пометка_для_контекста):
+    - короткий файл → целиком, пометка пустая;
+    - длинный → карта-оглавление + разделы, релевантные вопросу (скоринг
+      по словам вопроса: в заголовке вес выше), остаток бюджета — с начала
+      документа; выбранные секции в исходном порядке.
+    """
+    if len(text) <= budget:
+        return text, ""
+    sections = _split_sections(text)
+    if len(sections) < 3:
+        return text[:budget], (
+            f"обрезано до первых {budget} символов (разделы не распознаны)"
+        )
+
+    q_words = {w for w in re.findall(r"[а-яёa-z0-9]{4,}", (question or "").lower())}
+
+    def score(item: tuple[str, str, int]) -> int:
+        title, body, _ = item
+        t = title.lower()
+        s = 3 * sum(1 for w in q_words if w in t)
+        if q_words:
+            head = body[:3000].lower()
+            s += sum(head.count(w) for w in q_words)
+        return s
+
+    toc = " | ".join(t for t, _, _ in sections)[:3000]
+    toc_line = f"[ОГЛАВЛЕНИЕ ФАЙЛА: {toc}]"
+
+    chosen: dict[int, tuple[str, str, int]] = {}
+    used = len(toc_line)
+    # до 70% бюджета — релевантные вопросу разделы (по убыванию релевантности)
+    relevant_budget = int(budget * 0.7)
+    for item in sorted(sections, key=score, reverse=True):
+        if score(item) == 0:
+            break
+        if used + len(item[1]) > relevant_budget:
+            continue
+        chosen[item[2]] = item
+        used += len(item[1])
+    # остаток — с начала документа по порядку (общая часть почти всегда важна)
+    for item in sections:
+        if used + len(item[1]) > budget:
+            continue
+        if item[2] not in chosen:
+            chosen[item[2]] = item
+            used += len(item[1])
+
+    parts = [f"### {t}\n{b}" for _, (t, b, _pos) in sorted(chosen.items())]
+    # страховка от разрастания на служебных обвязках
+    out = toc_line + "\n\n" + "\n\n".join(parts)
+    if len(out) > budget:
+        out = out[:budget]
+    note = (
+        f"интеллектуальная выборка под вопрос: показаны оглавление, разделы "
+        f"«{len(chosen)}» из {len(sections)} (релевантные вопросу + начало "
+        f"документа); полный размер файла {len(text)} символов"
+    )
+    return out, note
+
+
+async def _files_section(
+    session: AsyncSession, app_id: uuid.UUID, question: str = ""
+) -> str:
     """Секция ФАЙЛЫ для контекста ассистента: текст артефактов заявки.
 
     pdf/docx/txt — содержимое (кэш в artifact.extracted_text), бинарные —
@@ -1499,12 +1595,15 @@ async def _files_section(session: AsyncSession, app_id: uuid.UUID) -> str:
         if not text:
             binary.append(art.filename)
             continue
-        chunk = text[:_FILE_CTX_PER_LIMIT]
+        chunk, note = _smart_file_view(text, question, _FILE_CTX_PER_LIMIT)
+        if total + len(chunk) > _FILE_CTX_TOTAL_LIMIT:
+            chunk = chunk[: _FILE_CTX_TOTAL_LIMIT - total]
+            note = (note + "; " if note else "") + "обрезано: общий лимит файлов"
         total += len(chunk)
-        if total > _FILE_CTX_TOTAL_LIMIT:
-            parts.append(f"=== {art.filename} ===\n(обрезано: превышен общий лимит)")
-            break
-        parts.append(f"=== {art.filename} ===\n{chunk}")
+        parts.append(
+            f"=== {art.filename} ===\n{chunk}"
+            + (f"\n[{note}]" if note else "")
+        )
     if not parts:
         return ""
     section = "ФАЙЛЫ ЗАЯВКИ (вкладка «Артефакты», текст извлечён):\n" + "\n\n".join(parts)
@@ -1555,7 +1654,7 @@ async def assistant_chat(
         response_text=a.cover_letter or "(отклик не сохранён)",
         dialog_history="\n".join(dialog_parts) or "(переписки ещё нет)",
         draft_reply=(a.draft_reply or "").strip() or "(пусто)",
-        files_section=await _files_section(session, a.id),
+        files_section=await _files_section(session, a.id, question=body.message),
     )
 
     history_rows = (
