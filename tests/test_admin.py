@@ -1236,3 +1236,12 @@ def test_smart_file_view_no_headings_fallback():
     chunk, note = _smart_file_view(text, "вопрос", 10_000)
     assert "разделы не распознаны" in note
     assert len(chunk) <= 10_000
+
+
+def test_smart_view_dedupes_repeated_heading():
+    from app.routers.admin import _split_sections
+
+    doc = "## 1. Заголовок\n1. Заголовок\nтекст секции"
+    secs = _split_sections(doc)
+    body = secs[1][1] if len(secs) > 1 else ""
+    assert body.count("Заголовок") == 1  # стилевая строка + дубль слит в одну
