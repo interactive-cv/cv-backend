@@ -41,6 +41,9 @@ class Artifact(Base):
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     # Аналитика скачиваний (атомарный инкремент, как hit_count у short_link)
     download_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Извлечённый текст (pdf/docx/txt) для контекста LLM-ассистента.
+    # None = не текстовый или ещё не извлекали (извлечётся on-demand).
+    extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     application: Mapped["Application"] = relationship(back_populates="artifacts")
