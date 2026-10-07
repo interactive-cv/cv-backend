@@ -1508,7 +1508,9 @@ def _split_sections(text: str) -> list[tuple[str, str, int]]:
             peek = lines[i + 1].strip() if i + 1 < len(lines) else ""
             if peek == cur_title:
                 skip_next = True
-            buf = [line]
+            # Заголовок живёт в cur_title (в выдержку идёт префиксом
+            # «### {t}») — в тело секции его не кладём, иначе задвоение.
+            buf = []
         else:
             buf.append(line)
         pos += len(line) + 1
