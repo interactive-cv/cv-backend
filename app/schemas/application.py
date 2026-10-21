@@ -19,6 +19,9 @@ class GenerateIn(BaseModel):
     platform: Literal["fl", "kwork", "profi"] | None = None
     budget: str | None = None
     budget_max: str | None = None
+    offered_price: str | None = None
+    offered_price_max: str | None = None
+    my_term_days: int | None = None
     spec_text: str | None = None
     estimate: str | None = None
     extra_instruction: str | None = None
@@ -66,6 +69,9 @@ class ApplicationCreateIn(BaseModel):
     chat_url: str | None = None
     budget: str | None = None
     budget_max: str | None = None
+    offered_price: str | None = None
+    offered_price_max: str | None = None
+    my_term_days: int | None = None
     applicant_count: int | None = None
     deadline: datetime | None = None
     expected_term: str | None = None
@@ -100,6 +106,9 @@ class ApplicationUpdateIn(BaseModel):
     chat_url: str | None = None
     budget: str | None = None
     budget_max: str | None = None
+    offered_price: str | None = None
+    offered_price_max: str | None = None
+    my_term_days: int | None = None
     applicant_count: int | None = None
     deadline: datetime | None = None
     expected_term: str | None = None
@@ -145,6 +154,9 @@ class ApplicationDetailOut(ApplicationOut):
     extra_instruction: str | None = None
     platform: str | None = None
     draft_reply: str | None = None
+    offered_price: str | None = None
+    offered_price_max: str | None = None
+    my_term_days: int | None = None
     interviews: list[InterviewOut] = []
     artifacts: list[ArtifactOut] = []
     last_click_at: datetime | None = None

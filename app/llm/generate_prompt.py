@@ -64,6 +64,9 @@ async def build_generate_prompt(
     budget: str | None = None,
     budget_max: str | None = None,
     cover_limit: int | None = None,
+    offered_price: str | None = None,
+    offered_price_max: str | None = None,
+    my_term_days: int | None = None,
 ) -> str:
     """Собирает промпт для генерации CV и cover letter.
 
@@ -130,14 +133,30 @@ async def build_generate_prompt(
     if spec_section:
         spec_block = SPEC_SECTION_TEMPLATE.replace("{spec_text}", spec_section)
 
-    # Бюджетная вилка (kwork: желаемый + допустимый; FL: просто бюджет).
-    budget_block = ""
+    # Цены и срок: budget/budget_max — цены ЗАКАЗЧИКА (желаемая / верх
+    # вилки), offered_price(+_max) — мои условия в отклике, my_term_days —
+    # мой срок. Все цифры доступны LLM в генерации и в диалоге.
+    budget_block = "\nЦЕНЫ И СРОК (служебные данные):\n"
+    have = False
     if budget and budget.strip():
-        budget_block = f"\nБЮДЖЕТ ЗАКАЗА:\nЖелаемый бюджет: {budget.strip()}\n"
+        budget_block += f"Желаемая цена заказчика: {budget.strip()}"
         if budget_max and budget_max.strip():
-            budget_block += f"Допустимый бюджет: {budget_max.strip()}\n"
-    elif budget_max and budget_max.strip():
-        budget_block = f"\nБЮДЖЕТ ЗАКАЗА: {budget_max.strip()}\n"
+            budget_block += f" (вилка заказчика до {budget_max.strip()})"
+        budget_block += "\n"
+        have = True
+    if offered_price and offered_price.strip():
+        p_txt = offered_price.strip()
+        if offered_price_max and offered_price_max.strip():
+            p_txt += f" — {offered_price_max.strip()} (вилка моего отклика)"
+        else:
+            p_txt += " (моя цена отклика, точная)"
+        budget_block += f"Моя цена в отклике: {p_txt}\n"
+        have = True
+    if my_term_days:
+        budget_block += f"Мой срок в отклике: {my_term_days} дней\n"
+        have = True
+    if not have:
+        budget_block = ""
 
     # Лимит символов отклика на площадке (FL.ru — 5000, Kwork — 2000).
     limit_block = ""

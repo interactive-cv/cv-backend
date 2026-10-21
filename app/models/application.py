@@ -110,3 +110,8 @@ class Application(Base):
     )
     # Черновик ответа заказчику (автосохраняется с фронта, переживает перезагрузку)
     draft_reply: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Мои условия в отклике: цена (FL/Kwork — точная; Profi — низ вилки),
+    # верх вилки (только Profi), срок отклика в днях (FL/Kwork; int).
+    offered_price: Mapped[str | None] = mapped_column(Text, nullable=True)
+    offered_price_max: Mapped[str | None] = mapped_column(Text, nullable=True)
+    my_term_days: Mapped[int | None] = mapped_column(Integer, nullable=True)

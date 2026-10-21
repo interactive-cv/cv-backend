@@ -237,6 +237,7 @@ async def generate_cv(
         session, master.full_markdown, body.vacancy_text, body.selected_projects,
         body.kind, body.spec_text, body.extra_instruction, body.platform,
         body.budget, body.budget_max, body.cover_limit,
+        body.offered_price, body.offered_price_max, body.my_term_days,
     )
     chunks: list[str] = []
     async for token in stream_chat(
@@ -429,6 +430,9 @@ async def create_application(
         chat_url=body.chat_url,
         budget=body.budget,
         budget_max=body.budget_max,
+        offered_price=body.offered_price,
+        offered_price_max=body.offered_price_max,
+        my_term_days=body.my_term_days,
         applicant_count=body.applicant_count,
         deadline=body.deadline,
         expected_term=body.expected_term,
@@ -532,6 +536,9 @@ async def get_application(
         extra_instruction=a.extra_instruction,
         platform=a.platform,
         draft_reply=a.draft_reply,
+        offered_price=a.offered_price,
+        offered_price_max=a.offered_price_max,
+        my_term_days=a.my_term_days,
         interviews=[
             InterviewOut(
                 id=str(i.id),
@@ -597,6 +604,12 @@ async def update_application(
         a.chat_url = body.chat_url
     if body.budget is not None:
         a.budget = body.budget
+    if body.offered_price is not None:
+        a.offered_price = body.offered_price
+    if body.offered_price_max is not None:
+        a.offered_price_max = body.offered_price_max
+    if body.my_term_days is not None:
+        a.my_term_days = body.my_term_days
     if body.applicant_count is not None:
         a.applicant_count = body.applicant_count
     if body.deadline is not None:
@@ -1663,12 +1676,35 @@ async def assistant_chat(
         who = "ЗАКАЗЧИК" if m.role == "customer" else "Я"
         dialog_parts.append(f"[{m.created_at:%d.%m %H:%M}] {who}: {m.content}")
 
+    deal = "\nЦЕНЫ И СРОК ПО ЗАКАЗУ:\n"
+    have_deal = False
+    if a.budget:
+        deal += f"Желаемая цена заказчика: {a.budget}"
+        if a.budget_max:
+            deal += f" (вилка заказчика до {a.budget_max})"
+        deal += "\n"
+        have_deal = True
+    if a.offered_price:
+        p_txt = a.offered_price
+        if a.offered_price_max:
+            p_txt += f" — {a.offered_price_max} (вилка моего отклика)"
+        else:
+            p_txt += " (моя цена отклика, точная)"
+        deal += f"Моя цена в отклике: {p_txt}\n"
+        have_deal = True
+    if a.my_term_days:
+        deal += f"Мой срок в отклике: {a.my_term_days} дней\n"
+        have_deal = True
+    if not have_deal:
+        deal = ""
+
     system_prompt = template.format(
         order_text=a.vacancy_text,
         spec_text=(a.spec_text or "").strip() or "(не предоставлено)",
         response_text=a.cover_letter or "(отклик не сохранён)",
         dialog_history="\n".join(dialog_parts) or "(переписки ещё нет)",
         draft_reply=(a.draft_reply or "").strip() or "(пусто)",
+        deal_data=deal,
         files_section=await _files_section(session, a.id, question=body.message),
     )
 
