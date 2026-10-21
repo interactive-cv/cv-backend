@@ -36,6 +36,7 @@ from app.seed_defaults import (
     DEFAULT_PROMPT_GENERATE,
     DEFAULT_PROMPT_GENERATE_CONTEST,
     DEFAULT_PROMPT_GENERATE_FREELANCE,
+    DEFAULT_PROMPT_GENERATE_PROFI,
     DEFAULT_PROMPT_NEGOTIATION,
 )
 
@@ -48,6 +49,7 @@ PROMPTS = {
     "prompt_cv_edit": (DEFAULT_PROMPT_CV_EDIT, "AI-правка CV"),
     "prompt_negotiation": (DEFAULT_PROMPT_NEGOTIATION, "Помощник переговоров"),
     "prompt_assistant": (DEFAULT_PROMPT_ASSISTANT, "Ассистент-тред"),
+    "prompt_generate_profi": (DEFAULT_PROMPT_GENERATE_PROFI, "Генерация (Profi.ru)"),
 }
 
 

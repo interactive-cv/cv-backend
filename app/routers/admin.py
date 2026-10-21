@@ -379,7 +379,9 @@ async def create_application(
     # kwork: публичная CV-страница не создаётся — CV по дизайну kwork-промпта
     # пуст, ссылка вела бы на страницу с одним заголовком. Вариант остаётся
     # draft (недоступен публично), короткая ссылка не генерируется.
-    is_kwork = body.platform == "kwork"
+    # kwork и profi: публичная CV-страница не создаётся — ссылки/контакты
+    # на этих площадках запрещены, отклик живёт в форме биржи.
+    no_public_platform = body.platform in ("kwork", "profi")
     # создаём cv_variant для отклика
     v = CVVariant(
         master_cv_id=1,
@@ -389,7 +391,7 @@ async def create_application(
         content_markdown=body.cv_markdown,
         status=(
             CVVariantStatus.active
-            if body.status == "active" and not is_kwork
+            if body.status == "active" and not no_public_platform
             else CVVariantStatus.draft
         ),
     )
@@ -400,7 +402,7 @@ async def create_application(
     short_url: str | None = None
     # Если создаём сразу активным (published) — генерируем короткую ссылку
     # и заменяем {CV_LINK} в cover letter. Это эквивалент ручной публикации.
-    if body.status == "active" and not is_kwork:
+    if body.status == "active" and not no_public_platform:
         code = _generate_code()
         link = ShortLink(
             code=code,
@@ -624,7 +626,7 @@ async def publish_application(
         raise AppError("not_found", "Отклик не найден", 404)
     # kwork: без публичных артефактов — «Опубликовать» означает лишь
     # «отклик отправлен». Ссылка и активация CV-варианта не нужны.
-    if a.platform == "kwork":
+    if a.platform in ("kwork", "profi"):
         a.status = ApplicationStatus.active
         a.published_at = datetime.now(UTC)
         await session.commit()
@@ -1778,6 +1780,9 @@ async def get_settings(
         ),
         prompt_assistant=_config_row(
             rows.get("prompt_assistant"), "prompt_assistant"
+        ),
+        prompt_generate_profi=_config_row(
+            rows.get("prompt_generate_profi"), "prompt_generate_profi"
         ),
     )
 

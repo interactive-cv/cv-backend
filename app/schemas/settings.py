@@ -25,6 +25,7 @@ class SettingsOut(BaseModel):
     prompt_generate_kwork: ConfigTextOut
     prompt_negotiation: ConfigTextOut
     prompt_assistant: ConfigTextOut
+    prompt_generate_profi: ConfigTextOut
 
 
 class SettingsUpdateIn(BaseModel):
@@ -41,6 +42,7 @@ class SettingsUpdateIn(BaseModel):
     prompt_generate_kwork: str | None = None
     prompt_negotiation: str | None = None
     prompt_assistant: str | None = None
+    prompt_generate_profi: str | None = None
 
 
 class CvEditInstructionIn(BaseModel):

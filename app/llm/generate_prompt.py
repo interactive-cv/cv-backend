@@ -90,6 +90,13 @@ async def build_generate_prompt(
             await get_config_value(session, "prompt_generate_kwork")
             or DEFAULT_PROMPT_GENERATE_KWORK
         )
+    elif platform == "profi":
+        from app.seed_defaults import DEFAULT_PROMPT_GENERATE_PROFI
+
+        template = (
+            await get_config_value(session, "prompt_generate_profi")
+            or DEFAULT_PROMPT_GENERATE_PROFI
+        )
     elif kind == "freelance":
         from app.seed_defaults import DEFAULT_PROMPT_GENERATE_FREELANCE
 
