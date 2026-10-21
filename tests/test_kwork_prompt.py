@@ -50,7 +50,7 @@ async def test_build_prompt_kwork_budget_included(session):
         budget="500",
         budget_max=None,
     )
-    assert "Желаемый бюджет: 500" in prompt
+    assert "Желаемая цена заказчика: 500" in prompt
     assert "ЗАНИЖЕННЫЙ БЮДЖЕТ" in prompt
     # Это kwork-промпт, а не общий шаблон вакансий
     assert "ОПИСАНИЕ ПРОЕКТА KWORK" in prompt

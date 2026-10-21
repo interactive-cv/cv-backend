@@ -675,8 +675,8 @@ async def test_kwork_prompt_has_budget_and_estimate(client, session):
         session, "# CV\nDev", "Нужен MVP", [], "freelance",
         platform="kwork", budget="1500", budget_max="4500",
     )
-    assert "Желаемый бюджет: 1500" in prompt
-    assert "Допустимый бюджет: 4500" in prompt
+    assert "Желаемая цена заказчика: 1500" in prompt
+    assert "вилка заказчика до 4500" in prompt
     assert "===ESTIMATE===" in prompt
     assert "{cv_link}" not in prompt
 
