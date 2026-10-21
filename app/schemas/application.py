@@ -16,7 +16,7 @@ class GenerateIn(BaseModel):
     vacancy_text: str
     selected_projects: list[str] = []
     kind: Literal["vacancy", "freelance", "contest"] = "vacancy"
-    platform: Literal["fl", "kwork"] | None = None
+    platform: Literal["fl", "kwork", "profi"] | None = None
     budget: str | None = None
     budget_max: str | None = None
     spec_text: str | None = None

@@ -1247,3 +1247,60 @@ def test_smart_view_dedupes_repeated_heading():
     # заголовок — только в title, дубль-строка пропущена, тело чистое
     assert secs[0][0] == "1. Заголовок"
     assert secs[0][1] == "текст секции"
+
+
+# ===== Тесты Profi.ru =====
+
+
+@pytest.mark.asyncio
+async def test_profi_prompt_selected_and_strict(client, session):
+    """platform=profi → profi-промпт: без cv_link/контактов, с жёсткими правилами."""
+    from app.llm.generate_prompt import build_generate_prompt
+    from app.models import MasterCV
+
+    session.add(MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV\nDev", version=1))
+    await session.commit()
+
+    prompt = await build_generate_prompt(
+        session, "# CV\nDev", "Нужен сайт", [], "freelance", platform="profi",
+    )
+    assert "PROFI.RU" in prompt
+    assert "{cv_link}" not in prompt and "@vrg18" not in prompt
+    assert "ЗАПРЕЩЕНЫ" in prompt
+
+
+@pytest.mark.asyncio
+async def test_profi_active_no_public_link(client, session):
+    """profi-заявка при status=active не получает короткую ссылку (как kwork)."""
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "Profi", "role": "Сайт клиники", "vacancy_text": "v",
+            "cv_markdown": "", "cover_letter": "Отклик", "slug": "profi-pub-1",
+            "platform": "profi", "status": "active", "kind": "freelance",
+        },
+    )
+    assert res.status_code == 201
+    assert res.json().get("url") is None
+    detail = (await client.get(
+        f"/api/admin/applications/{res.json()['id']}", headers=VALID)).json()
+    assert detail["short_link_code"] is None
+    assert (await client.get("/api/variants/profi-pub-1")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_profi_publish_marks_sent_without_link(client, session):
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "Profi", "role": "Ремонт сайта", "vacancy_text": "v",
+            "cv_markdown": "", "cover_letter": "Отклик", "slug": "profi-pub-2",
+            "platform": "profi", "status": "draft", "kind": "freelance",
+        },
+    )
+    pub = await client.post(
+        f"/api/admin/applications/{res.json()['id']}/publish", headers=VALID)
+    assert pub.status_code == 200
+    assert pub.json()["code"] is None

@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Application, Artifact, Interview, NegotiationMessage
 
-CHANNEL_NAMES = {"fl": "FL.ru", "telegram": "Telegram", "email": "Email"}
+CHANNEL_NAMES = {"fl": "FL.ru", "kwork": "Kwork", "profi": "Profi.ru", "telegram": "Telegram", "email": "Email"}
 
 
 def _fmt_dt(dt: datetime | None) -> str:
