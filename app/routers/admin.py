@@ -314,6 +314,19 @@ async def edit_chat(
             f"Если правки удлиняют текст — урежь менее существенное, чтобы уложиться."
         )
 
+    # Оценка стоимости/сроков: LLM видит текущую и по запросу пользователя
+    # возвращает обновлённую в ===ESTIMATE===...===END=== (фронт применяет
+    # и сохраняет в отклик). Работает в обоих режимах — как и тексты правки.
+    if body.current_estimate:
+        prompt += (
+            "\n\nТЕКУЩАЯ ОЦЕНКА СТОИМОСТИ И СРОКОВ (видна только владельцу):\n"
+            f"{body.current_estimate}\n"
+            "Если пользователь просит пересчитать или уточнить оценку — верни "
+            "обновлённый текст оценки в маркерах ===ESTIMATE===...===END=== "
+            "(отдельно или вместе с ===CV===/===COVER===). Цифры обосновывай, "
+            "не выдумывай. Оценка не предназначена заказчику."
+        )
+
     async def gen():
         try:
             async for token in stream_chat(
@@ -469,6 +482,21 @@ async def create_application(
             except OSError:
                 pass  # файл не нашли — оставляем старый путь, запись всё равно привяжем
             art.application_id = app.id
+
+    # Предпубликационный диалог (EditChat) — в тред ассистента с origin="prep":
+    # ранняя часть истории «владелец ↔ LLM», доступна во вкладке «Диалог»
+    # и в контексте ассистента. Мусор не тащим: пустые реплики и ошибки стрима.
+    if body.prep_history:
+        for msg in body.prep_history[-100:]:
+            role = msg.get("role")
+            content = (msg.get("content") or "").strip()
+            if role not in ("user", "assistant") or not content:
+                continue
+            if content.startswith("⚠ Ошибка"):
+                continue
+            session.add(AssistantMessage(
+                application_id=app.id, role=role, content=content, origin="prep",
+            ))
 
     await session.commit()
     result: dict = {"id": str(app.id), "slug": app.slug}
@@ -1426,7 +1454,8 @@ async def list_assistant_messages(
         )
     ).scalars().all()
     return [AssistantMessageOut(
-        id=str(m.id), role=m.role, content=m.content, created_at=m.created_at,
+        id=str(m.id), role=m.role, content=m.content,
+        origin=m.origin, created_at=m.created_at,
     ) for m in rows]
 
 
@@ -1708,6 +1737,19 @@ async def assistant_chat(
         files_section=await _files_section(session, a.id, question=body.message),
     )
 
+    # Оценка стоимости/сроков: чтение — всегда в контексте; запись — обновлённая
+    # оценка в ===ESTIMATE===...===END=== (фронт применяет и сохраняет в отклик).
+    # Блок добавляется программно поверх шаблона — промпт в БД не меняется.
+    if a.estimate:
+        system_prompt += (
+            "\n\nОЦЕНКА СТОИМОСТИ И СРОКОВ (текущая, видна только владельцу):\n"
+            f"{a.estimate}\n"
+            "Если владелец просит пересчитать или уточнить оценку — верни "
+            "обновлённый текст оценки в маркерах ===ESTIMATE===...===END=== "
+            "(перед маркером — краткое пояснение словами). Оценка — внутренний "
+            "документ, она не попадает в ===DRAFT=== и не предназначена заказчику."
+        )
+
     history_rows = (
         await session.execute(
             select(AssistantMessage)
@@ -1715,8 +1757,12 @@ async def assistant_chat(
             .order_by(AssistantMessage.created_at, AssistantMessage.id)
         )
     ).scalars().all()
+    # Prep-сообщения (обсуждение до публикации) — компактные и стабильные:
+    # уходят в контекст целиком; тред вкладки «Диалог» — окно последних 40.
+    prep_rows = [m for m in history_rows if m.origin == "prep"]
+    thread_rows = [m for m in history_rows if m.origin != "prep"]
     chat_messages = [
-        {"role": m.role, "content": m.content} for m in history_rows[-40:]
+        {"role": m.role, "content": m.content} for m in prep_rows + thread_rows[-40:]
     ]
     chat_messages.append({"role": "user", "content": body.message.strip()})
 

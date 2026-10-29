@@ -49,6 +49,8 @@ class AssistantMessageOut(BaseModel):
     id: str
     role: Literal["user", "assistant"]
     content: str
+    # None — тред вкладки «Диалог»; "prep" — предпубликационное обсуждение.
+    origin: str | None = None
     created_at: datetime
 
 

@@ -32,6 +32,10 @@ class AssistantMessage(Base):
     )
     role: Mapped[str] = mapped_column(Text, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    # Фаза диалога: None — тред на вкладке «Диалог» (после сохранения отклика),
+    # "prep" — предпубликационное обсуждение (EditChat при создании отклика).
+    # Одна история на оба этапа: prep-сообщения — ранние реплики того же треда.
+    origin: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

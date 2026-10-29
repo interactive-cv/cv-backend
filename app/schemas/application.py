@@ -49,6 +49,9 @@ class EditChatIn(BaseModel):
     history: list[dict] = []
     temperature: float = 0.6
     cover_limit: int | None = None
+    # Текущая оценка стоимости/сроков (application.estimate) — LLM видит её
+    # и может вернуть обновлённую в маркерах ===ESTIMATE===...===END===.
+    current_estimate: str | None = None
     # chat — диалог: вопрос/обсуждение → только текстовый ответ.
     # edit — команда: перегенерация текстов (маркеры ===CV===/===COVER===).
     mode: Literal["chat", "edit"] = "chat"
@@ -83,6 +86,9 @@ class ApplicationCreateIn(BaseModel):
     platform: str | None = None
     # Staged-загрузки (POST /uploads) — привязать к создаваемой заявке
     uploads: list[str] = []
+    # Предпубликационный диалог (EditChat): [{role: user|assistant, content}]
+    # Сохраняется в assistant_message с origin="prep" — ранние реплики треда.
+    prep_history: list[dict] = []
 
 
 class PdfPreviewIn(BaseModel):

@@ -1051,6 +1051,114 @@ async def test_assistant_thread_and_draft_reply(client, session):
     assert detail["role"] == "Доработка магазина"  # отклик не удалён
 
 
+@pytest.mark.asyncio
+async def test_prep_history_saved_as_prep_messages(client, session):
+    """prep_history создания отклика — в тред ассистента с origin="prep";
+    мусор (пустые, ошибки стрима, левые роли) отфильтрован."""
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "FL", "role": "Парсер спецификаций",
+            "vacancy_text": "v", "cover_letter": "ok", "cv_markdown": "# CV",
+            "slug": "prep-history-1", "kind": "freelance",
+            "prep_history": [
+                {"role": "user", "content": "акцент на backend"},
+                {"role": "assistant", "content": "✅ Применено: отклик (900 симв.)"},
+                {"role": "assistant", "content": "⚠ Ошибка: network error"},
+                {"role": "user", "content": "   "},
+                {"role": "system", "content": "лишняя роль"},
+            ],
+        },
+    )
+    assert res.status_code == 201
+    app_id = res.json()["id"]
+    msgs = (await client.get(
+        f"/api/admin/applications/{app_id}/assistant-messages", headers=VALID)
+    ).json()
+    assert [m["origin"] for m in msgs] == ["prep", "prep"]
+    assert msgs[0]["content"] == "акцент на backend"
+
+    # Обычное сообщение треда (после публикации) — origin null, в конец истории
+    r = await client.post(
+        f"/api/admin/applications/{app_id}/assistant-messages", headers=VALID,
+        json={"content": "Совет после публикации"},
+    )
+    assert r.status_code == 201
+    msgs = (await client.get(
+        f"/api/admin/applications/{app_id}/assistant-messages", headers=VALID)
+    ).json()
+    assert [m["origin"] for m in msgs] == ["prep", "prep", None]
+
+
+@pytest.mark.asyncio
+async def test_assistant_context_prep_and_estimate(client, session, monkeypatch):
+    """Контекст ассистента: prep-история целиком + блок текущей оценки
+    с инструкцией ===ESTIMATE===(запись)."""
+    import app.routers.admin as admin_router
+
+    captured: dict = {}
+
+    async def fake_stream(messages, system, temperature=0.7):
+        captured["messages"] = messages
+        captured["system"] = system
+        yield "ок"
+
+    monkeypatch.setattr(admin_router, "stream_chat", fake_stream)
+
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "FL", "role": "Интеграция",
+            "vacancy_text": "v", "cover_letter": "ok", "cv_markdown": "# CV",
+            "slug": "assistant-ctx-1", "kind": "freelance",
+            "estimate": "50000₽ / 14 дней",
+            "prep_history": [
+                {"role": "user", "content": "акцент на API"},
+                {"role": "assistant", "content": "✅ Применено: CV"},
+            ],
+        },
+    )
+    app_id = res.json()["id"]
+    r = await client.post(
+        f"/api/admin/applications/{app_id}/assistant-chat", headers=VALID,
+        json={"message": "сколько возьмём за срочность?"},
+    )
+    assert r.status_code == 200
+    # prep-реплики + текущее сообщение (тред «Диалога» пуст)
+    assert [m["role"] for m in captured["messages"]] == ["user", "assistant", "user"]
+    assert "ОЦЕНКА СТОИМОСТИ И СРОКОВ" in captured["system"]
+    assert "50000" in captured["system"]
+    assert "===ESTIMATE===" in captured["system"]
+
+
+@pytest.mark.asyncio
+async def test_edit_chat_estimate_block(client, session, monkeypatch):
+    """edit-chat: текущая оценка — в промпт, маркер ===ESTIMATE=== разрешён."""
+    import app.routers.admin as admin_router
+
+    captured: dict = {}
+
+    async def fake_stream(messages, system, temperature=0.6):
+        captured["system"] = system
+        yield "ок"
+
+    monkeypatch.setattr(admin_router, "stream_chat", fake_stream)
+
+    r = await client.post(
+        "/api/admin/applications/edit-chat", headers=VALID,
+        json={
+            "cv_markdown": "# c", "cover_letter": "x",
+            "instruction": "пересчитай оценку с учётом срочности",
+            "mode": "edit", "current_estimate": "100000₽ / 30 дней",
+        },
+    )
+    assert r.status_code == 200
+    assert "ТЕКУЩАЯ ОЦЕНКА СТОИМОСТИ И СРОКОВ" in captured["system"]
+    assert "===ESTIMATE===" in captured["system"]
+
+
 def test_assistant_prompt_markers_in_default():
     """Дефолт ассистента требует ===DRAFT=== и два режима."""
     from app.seed_defaults import DEFAULT_PROMPT_ASSISTANT
