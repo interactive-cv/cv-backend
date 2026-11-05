@@ -1,3 +1,4 @@
+import json
 import re
 import secrets
 import string
@@ -43,7 +44,6 @@ from app.schemas.application import (
     ApplicationUpdateIn,
     EditChatIn,
     GenerateIn,
-    GenerateOut,
     PdfPreviewIn,
 )
 from app.schemas.artifact import ArtifactOut, StagedUploadOut
@@ -223,11 +223,35 @@ async def upload_spec_files(
     }
 
 
+def _generate_stage(acc: str) -> str:
+    """Стадия генерации по накопленному тексту — для статусной строки фронта."""
+    if "===ESTIMATE===" in acc:
+        return "estimate"
+    if "===COVER===" in acc:
+        return "cover"
+    if "===CV===" in acc:
+        return "cv"
+    return "thinking"
+
+
 @router.post("/applications/generate")
 async def generate_cv(
     body: GenerateIn, session: AsyncSession = Depends(get_session)
-) -> GenerateOut:
-    """AI-генерация адаптированного CV и cover letter из вакансии."""
+) -> StreamingResponse:
+    """AI-генерация адаптированного CV и cover letter (стриминг NDJSON).
+
+    Генерация с reasoning на большом промпте идёт минуты — единый JSON-ответ
+    рвётся таймаутами шлюзов (HTTP 504). Поэтому эндпоинт стриминговый:
+    построчные JSON-события, фронт показывает прогресс по накопленному тексту.
+
+    События:
+      {"type": "progress", "n": <символов>}   — батчами, не каждым токеном;
+      {"type": "done", "cv_markdown": ..., "cover_letter": ..., "estimate": ...,
+       "prompt": ...}                          — финал, поля как у GenerateOut;
+      {"type": "error", "message": ...}        — сбой LLM.
+    """
+    import time
+
     master = (
         await session.execute(select(MasterCV).where(MasterCV.id == 1))
     ).scalar_one_or_none()
@@ -239,14 +263,41 @@ async def generate_cv(
         body.budget, body.budget_max, body.cover_limit,
         body.offered_price, body.offered_price_max, body.my_term_days,
     )
-    chunks: list[str] = []
-    async for token in stream_chat(
-        [{"role": "user", "content": "Сгенерируй отклик"}], prompt,
-        temperature=body.temperature,
-    ):
-        chunks.append(token)
-    cv_md, cover_md, estimate = parse_generate_response("".join(chunks))
-    return GenerateOut(cv_markdown=cv_md, cover_letter=cover_md, estimate=estimate, prompt=prompt)
+
+    async def gen():
+        chunks: list[str] = []
+        total = 0
+        last_sent = 0.0
+        try:
+            async for token in stream_chat(
+                [{"role": "user", "content": "Сгенерируй отклик"}], prompt,
+                temperature=body.temperature,
+            ):
+                chunks.append(token)
+                total += len(token)
+                # прогресс — не чаще 2 раз в секунду: фронт обновляет статус
+                if time.monotonic() - last_sent >= 0.5:
+                    last_sent = time.monotonic()
+                    stage = _generate_stage("".join(chunks))
+                    yield (
+                        f'{{"type": "progress", "n": {total}, '
+                        f'"stage": "{stage}"}}\n'
+                    )
+            cv_md, cover_md, estimate = parse_generate_response("".join(chunks))
+            yield json.dumps({
+                "type": "done",
+                "cv_markdown": cv_md,
+                "cover_letter": cover_md,
+                "estimate": estimate,
+                "prompt": prompt,
+            }, ensure_ascii=False) + "\n"
+        except Exception as e:
+            yield json.dumps({
+                "type": "error",
+                "message": f"{type(e).__name__}: {e}",
+            }, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(gen(), media_type="application/x-ndjson")
 
 
 @router.post("/applications/edit-chat")
