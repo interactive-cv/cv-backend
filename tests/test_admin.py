@@ -803,6 +803,30 @@ def test_telegram_in_fl_prompts_defaults():
     assert "@vrg18" not in DEFAULT_PROMPT_GENERATE
 
 
+def test_fl_links_rule_in_all_fl_prompts():
+    """Правило оформления ссылок для FL.ru — во всех трёх FL-промптах
+    (vacancy, freelance, contest); kwork/profi — нет (ссылки запрещены)."""
+    from app.seed_defaults import (
+        DEFAULT_PROMPT_GENERATE,
+        DEFAULT_PROMPT_GENERATE_CONTEST,
+        DEFAULT_PROMPT_GENERATE_FREELANCE,
+        DEFAULT_PROMPT_GENERATE_KWORK,
+        DEFAULT_PROMPT_GENERATE_PROFI,
+    )
+
+    fl_prompts = [
+        DEFAULT_PROMPT_GENERATE,
+        DEFAULT_PROMPT_GENERATE_FREELANCE,
+        DEFAULT_PROMPT_GENERATE_CONTEST,
+    ]
+    for p in fl_prompts:
+        assert "ССЫЛКИ В ТЕКСТЕ ОТКЛИКА (FL.ru)" in p
+        assert "https://" in p
+        assert "пробел или перевод" in p
+    assert "ССЫЛКИ В ТЕКСТЕ ОТКЛИКА" not in DEFAULT_PROMPT_GENERATE_KWORK
+    assert "ССЫЛКИ В ТЕКСТЕ ОТКЛИКА" not in DEFAULT_PROMPT_GENERATE_PROFI
+
+
 # ===== Тесты ESTIMATE: адекватность и риски =====
 
 
