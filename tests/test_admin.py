@@ -144,7 +144,8 @@ async def test_admin_generate_cv(client, session):
     session.add(MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV\nFlutter", version=1))
     await session.commit()
     sse = (
-        'data: {"choices":[{"delta":{"content":"===CV===\\n# CV\\n===COVER===\\n# Cover"}}]}\n\n'
+        'data: {"choices":[{"delta":{"content":"===CV===\\n# CV\\n"}}]}\n\n'
+        'data: {"choices":[{"delta":{"content":"===COVER===\\n# Cover"}}]}\n\n'
         'data: [DONE]\n\n'
     )
     respx.post(f"{settings.zai_api_base}/chat/completions").mock(
@@ -156,11 +157,57 @@ async def test_admin_generate_cv(client, session):
         json={"company": "Y", "role": "R", "vacancy_text": "Flutter dev", "selected_projects": []},
     )
     assert res.status_code == 200
-    data = res.json()
-    assert "# CV" in data["cv_markdown"]
-    assert "# Cover" in data["cover_letter"]
-    assert "prompt" in data
-    assert len(data["prompt"]) > 0  # промпт собран и возвращён
+    # NDJSON: построчные события, финал — done с полями GenerateOut
+    import json as jsonlib
+
+    events = [jsonlib.loads(line) for line in res.text.splitlines() if line.strip()]
+    progress = [e for e in events if e["type"] == "progress"]
+    # прогресс идёт с числом символов и известной стадией (батчинг 0.5s:
+    # быстрые чанки могут слиться — конкретная стадия проверяется юнит-тестом ниже)
+    assert progress and all(e["n"] > 0 for e in progress)
+    assert all(e["stage"] in ("thinking", "cv", "cover", "estimate") for e in progress)
+    done = [e for e in events if e["type"] == "done"]
+    assert len(done) == 1
+    assert "# CV" in done[0]["cv_markdown"]
+    assert "# Cover" in done[0]["cover_letter"]
+    assert len(done[0]["prompt"]) > 0  # промпт собран и возвращён
+
+
+def test_generate_stage_by_accumulated_text():
+    """Стадия генерации определяется по накопленному тексту (для статуса фронта)."""
+    from app.routers.admin import _generate_stage
+
+    assert _generate_stage("Размышления модели") == "thinking"
+    assert _generate_stage("===CV===\n# CV") == "cv"
+    assert _generate_stage("===CV===\n# CV\n===COVER===\nТекст отклика") == "cover"
+    assert _generate_stage("===COVER===\nx\n===ESTIMATE===\ny") == "estimate"
+
+
+@pytest.mark.asyncio
+async def test_admin_generate_cv_error_event(client, session, monkeypatch):
+    """Сбой LLM в стриме → событие error, а не обрыв соединения."""
+    import app.routers.admin as admin_router
+    from app.models import MasterCV
+
+    session.add(MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV", version=1))
+    await session.commit()
+
+    async def broken_stream(messages, system, temperature=0.8):
+        yield "===CV==="
+        raise RuntimeError("upstream gone")
+
+    monkeypatch.setattr(admin_router, "stream_chat", broken_stream)
+    res = await client.post(
+        "/api/admin/applications/generate",
+        headers=VALID,
+        json={"company": "Y", "role": "R", "vacancy_text": "v", "selected_projects": []},
+    )
+    assert res.status_code == 200
+    import json as jsonlib
+
+    events = [jsonlib.loads(line) for line in res.text.splitlines() if line.strip()]
+    assert events[-1]["type"] == "error"
+    assert "upstream gone" in events[-1]["message"]
 
 
 @pytest.mark.asyncio
