@@ -273,6 +273,40 @@ async def test_admin_publish_application(client, session):
 
 
 @pytest.mark.asyncio
+async def test_admin_publish_lower_case_cv_link(client, session):
+    """Регрессия: LLM иногда пишет плейсхолдер нижним регистром ({cv_link},
+    как учит промпт) — при публикации он тоже должен заменяться."""
+    res = await client.post(
+        "/api/admin/applications",
+        headers=VALID,
+        json={
+            "company": "X", "role": "R", "vacancy_text": "v",
+            "cv_markdown": "# m",
+            "cover_letter": "CV здесь: {cv_link}",
+            "slug": "x-lower-case",
+        },
+    )
+    app_id = res.json()["id"]
+    res = await client.post(f"/api/admin/applications/{app_id}/publish", headers=VALID)
+    short_url = res.json()["url"]
+    detail = (await client.get(f"/api/admin/applications/{app_id}", headers=VALID)).json()
+    assert "{cv_link}" not in detail["cover_letter"], "нижний плейсхолдер не заменён"
+    assert short_url in detail["cover_letter"]
+
+
+def test_sub_cv_link_any_case():
+    """Хелпер замены: любые регистры/пробелы внутри плейсхолдера."""
+    from app.routers.admin import _sub_cv_link
+
+    url = "https://cv.libera.pro/ABC12"
+    assert _sub_cv_link("ссылка: {cv_link}", url) == f"ссылка: {url}"
+    assert _sub_cv_link("ссылка: {CV_LINK}", url) == f"ссылка: {url}"
+    assert _sub_cv_link("ссылка: {Cv_Link} и { cv_link }", url) == f"ссылка: {url} и {url}"
+    assert _sub_cv_link("без плейсхолдера", url) == "без плейсхолдера"
+    assert _sub_cv_link(None, url) is None
+
+
+@pytest.mark.asyncio
 async def test_admin_archive_application(client, session):
     res = await client.post(
         "/api/admin/applications",
