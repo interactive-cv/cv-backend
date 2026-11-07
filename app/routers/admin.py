@@ -16,7 +16,6 @@ from app.deps import get_session, require_admin
 from app.errors import AppError
 from app.llm.client import stream_chat
 from app.llm.generate_prompt import (
-    CV_LINK_PLACEHOLDER,
     build_generate_prompt,
     parse_generate_response,
 )
@@ -85,6 +84,18 @@ router = APIRouter(prefix="/api/admin", dependencies=[Depends(require_admin)])
 _CODE_ALPHABET = string.ascii_uppercase  # ABCDEFGHIJKLMNOPQRSTUVWXYZ
 _CODE_LENGTH = 5
 _MAX_CODE_RETRIES = 5
+
+
+def _sub_cv_link(cover: str | None, url: str) -> str | None:
+    """Замена плейсхолдера ссылки на CV в любом регистре.
+
+    Промпт учит LLM писать {cv_link}, константа — {CV_LINK}; LLM варьирует
+    регистр, поэтому замена регистронезависимая (иначе плейсхолдер молча
+    оставался в опубликованном отклике).
+    """
+    if not cover:
+        return cover
+    return re.sub(r"\{\s*cv_link\s*\}", url, cover, flags=re.IGNORECASE)
 
 
 def _generate_code() -> str:
@@ -478,8 +489,7 @@ async def create_application(
         await session.flush()  # ShortLink должен существовать до FK-ссылки
         short_link_code = code
         short_url = f"{settings.site_url}/{code}"
-        if cover_letter and CV_LINK_PLACEHOLDER in cover_letter:
-            cover_letter = cover_letter.replace(CV_LINK_PLACEHOLDER, short_url)
+        cover_letter = _sub_cv_link(cover_letter, short_url)
     app = Application(
         company=body.company,
         role=body.role,
@@ -762,11 +772,11 @@ async def publish_application(
             v.status = CVVariantStatus.active
     a.status = ApplicationStatus.active
     a.published_at = datetime.now(UTC)
-    # заменяем плейсхолдер {CV_LINK} в cover letter на реальную короткую ссылку.
-    # LLM вставляет плейсхолдер при генерации; при публикации ссылка уже известна.
+    # заменяем плейсхолдер {CV_LINK}/{cv_link} в cover letter на реальную
+    # короткую ссылку. LLM вставляет плейсхолдер при генерации; при публикации
+    # ссылка уже известна. Регистр LLM варьирует — замена регистронезависимая.
     short_url = f"{settings.site_url}/{code}"
-    if a.cover_letter and CV_LINK_PLACEHOLDER in a.cover_letter:
-        a.cover_letter = a.cover_letter.replace(CV_LINK_PLACEHOLDER, short_url)
+    a.cover_letter = _sub_cv_link(a.cover_letter, short_url)
     await session.commit()
     return {"id": str(a.id), "code": code, "url": short_url}
 
