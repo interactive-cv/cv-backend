@@ -879,6 +879,27 @@ def test_no_grey_details_rule_in_fl_prompts():
         assert "продукт и результат" in p
 
 
+def test_fresh_projects_priority_and_plain_telegram():
+    """Правила: свежие проекты приоритетны в cover letter; Telegram — плоским
+    текстом, без markdown-ссылок (гллюцинация [vrg18.jpg](...) на проде)."""
+    from app.seed_defaults import (
+        DEFAULT_PROMPT_GENERATE,
+        DEFAULT_PROMPT_GENERATE_CONTEST,
+        DEFAULT_PROMPT_GENERATE_FREELANCE,
+    )
+
+    for p in (
+        DEFAULT_PROMPT_GENERATE,
+        DEFAULT_PROMPT_GENERATE_FREELANCE,
+        DEFAULT_PROMPT_GENERATE_CONTEST,
+    ):
+        assert "предпочитай самые свежие проекты" in p
+
+    for p in (DEFAULT_PROMPT_GENERATE_FREELANCE, DEFAULT_PROMPT_GENERATE_CONTEST):
+        assert "ТОЛЬКО плоским текстом" in p
+        assert "markdown-ссылкой" in p
+
+
 # ===== Тесты ESTIMATE: адекватность и риски =====
 
 
