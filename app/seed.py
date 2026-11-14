@@ -3,10 +3,13 @@
 Запуск (при поднятой БД):
     python -m app.seed
 
-Идемпотентен:
-- master_cv / projects: перезаписываются при каждом запуске.
+Идемпотентен и НЕ перетирает данные эксплуатации:
+- master_cv / projects: заливаются ТОЛЬКО при пустых таблицах (первый запуск).
+  После — правки через админку (/admin/settings, таблица project — SQL/API);
+  seed при повторных запусках их не трогает (деплой не откатывает данные).
+  SEED_REFRESH=1 — дев-режим: перезалить из файлов принудительно.
 - config_text (мастер-CV, README, промпты): заполняется ТОЛЬКО при первом
-  запуске (если ключей нет). После — правки только через админку (/admin/settings).
+  запуске (если ключей нет). После — правки только через админку.
 """
 import json
 from pathlib import Path
@@ -75,56 +78,73 @@ def _seed_config_text(session: Session) -> int:
     return len(CONFIG_KEYS)
 
 
+def _seed_master_cv(session: Session, refresh: bool) -> str:
+    """master_cv: заливка при отсутствии строки или refresh. Иначе не трогаем."""
+    existing = session.get(MasterCV, 1)
+    if existing is not None and not refresh:
+        return "master_cv skipped (already present; SEED_REFRESH=1 to re-seed)"
+
+    md = _read_seed("master_cv.md")
+    parsed = parse_master_cv(md)
+    if existing:
+        existing.full_markdown = md
+        existing.summary = parsed["summary"]
+        existing.contacts = parsed["contacts"]
+        existing.skills_core = parsed["skills_core"]
+        existing.skills_familiar = parsed["skills_familiar"]
+        existing.languages = parsed["languages"]
+        existing.format = parsed["format"]
+        existing.version += 1
+        return "master_cv refreshed from seed_data"
+    session.add(
+        MasterCV(
+            id=1,
+            summary=parsed["summary"],
+            contacts=parsed["contacts"],
+            skills_core=parsed["skills_core"],
+            skills_familiar=parsed["skills_familiar"],
+            languages=parsed["languages"],
+            format=parsed["format"],
+            full_markdown=md,
+            version=1,
+        )
+    )
+    return "master_cv inserted (first run)"
+
+
+def _seed_projects(session: Session, refresh: bool) -> str:
+    """projects: заливка при пустой таблице или refresh. Иначе не трогаем."""
+    has_projects = session.execute(select(Project.id).limit(1)).first() is not None
+    if has_projects and not refresh:
+        return "projects skipped (already present; SEED_REFRESH=1 to re-seed)"
+
+    for p in session.execute(select(Project)).scalars().all():
+        session.delete(p)
+    data = json.loads(_read_seed("projects.json"))
+    for i, p in enumerate(data):
+        session.add(Project(**p, order_idx=i))
+    return f"{len(data)} projects inserted"
+
+
 def main() -> None:
     engine = create_engine(settings.database_url)
 
     with Session(engine) as session:
-        # --- master_cv (одна строка, id=1) ---
-        md = _read_seed("master_cv.md")
-        parsed = parse_master_cv(md)
-        existing = session.get(MasterCV, 1)
-        if existing:
-            existing.full_markdown = md
-            existing.summary = parsed["summary"]
-            existing.contacts = parsed["contacts"]
-            existing.skills_core = parsed["skills_core"]
-            existing.skills_familiar = parsed["skills_familiar"]
-            existing.languages = parsed["languages"]
-            existing.format = parsed["format"]
-            existing.version += 1
-        else:
-            session.add(
-                MasterCV(
-                    id=1,
-                    summary=parsed["summary"],
-                    contacts=parsed["contacts"],
-                    skills_core=parsed["skills_core"],
-                    skills_familiar=parsed["skills_familiar"],
-                    languages=parsed["languages"],
-                    format=parsed["format"],
-                    full_markdown=md,
-                    version=1,
-                )
-            )
-
-        # --- projects (полная перезаливка, порядок по файлу) ---
-        for p in session.execute(select(Project)).scalars().all():
-            session.delete(p)
-        data = json.loads(_read_seed("projects.json"))
-        for i, p in enumerate(data):
-            session.add(Project(**p, order_idx=i))
-
+        refresh = settings.seed_refresh
+        parts = [
+            _seed_master_cv(session, refresh),
+            _seed_projects(session, refresh),
+        ]
         # --- config_text (только при первом запуске) ---
         config_created = _seed_config_text(session)
-
         session.commit()
 
     engine.dispose()
-    msg = f"seeded OK: master_cv updated, {len(data)} projects inserted"
+    msg = "seeded OK: " + "; ".join(parts)
     if config_created:
-        msg += f", {config_created} config_text rows created (first run)"
+        msg += f"; {config_created} config_text rows created (first run)"
     else:
-        msg += ", config_text skipped (already filled)"
+        msg += "; config_text skipped (already filled)"
     print(msg)
 
 

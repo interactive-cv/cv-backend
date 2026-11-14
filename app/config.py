@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     chat_rate_per_hour: int = 50
     chat_rate_per_day: int = 300
     artifact_max_size_mb: int = 100
+    # Seed: перезаливать master_cv/projects из seed_data при каждом запуске.
+    # По умолчанию данные заливаются только при ПУСТЫХ таблицах (первый запуск) —
+    # данные прода живут в БД и правятся через админку, seed их не откатывает.
+    # SEED_REFRESH=1 — дев-режим перезаливки из файлов.
+    seed_refresh: bool = False
 
     @property
     def cors_origins(self) -> list[str]:
