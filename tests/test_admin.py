@@ -861,6 +861,24 @@ def test_fl_links_rule_in_all_fl_prompts():
     assert "ССЫЛКИ В ТЕКСТЕ ОТКЛИКА" not in DEFAULT_PROMPT_GENERATE_PROFI
 
 
+def test_no_grey_details_rule_in_fl_prompts():
+    """Правило запрета деталей обхода анти-бот-защит — во всех трёх FL-промптах."""
+    from app.seed_defaults import (
+        DEFAULT_PROMPT_GENERATE,
+        DEFAULT_PROMPT_GENERATE_CONTEST,
+        DEFAULT_PROMPT_GENERATE_FREELANCE,
+    )
+
+    for p in (
+        DEFAULT_PROMPT_GENERATE,
+        DEFAULT_PROMPT_GENERATE_FREELANCE,
+        DEFAULT_PROMPT_GENERATE_CONTEST,
+    ):
+        assert "анти-бот" in p
+        assert "без публичного API" in p
+        assert "продукт и результат" in p
+
+
 # ===== Тесты ESTIMATE: адекватность и риски =====
 
 
