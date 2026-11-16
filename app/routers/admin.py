@@ -19,6 +19,11 @@ from app.llm.generate_prompt import (
     build_generate_prompt,
     parse_generate_response,
 )
+from app.llm.settings import (
+    ALLOWED_LLM_MODELS,
+    ALLOWED_REASONING_EFFORTS,
+    get_llm_settings_from_session,
+)
 from app.models import (
     Application,
     ApplicationKind,
@@ -68,9 +73,12 @@ from app.schemas.settings import (
     CvEditApplyIn,
     CvEditInstructionIn,
     CvEditPreviewOut,
+    LlmSettingsOut,
+    LlmSettingsUpdateIn,
     SettingsOut,
     SettingsUpdateIn,
 )
+from app.services.app_setting import set_app_setting
 from app.services.config_text import get_all_config, get_config_value, set_config_value
 from app.services.cv_parser import parse_master_cv
 from app.services.spec_extractor import extract_spec
@@ -1882,6 +1890,53 @@ async def list_instructions(
         }
         for r in rows
     ]
+
+
+# ===== LLM settings: модель и уровень рассуждений для всех вызовов z.ai =====
+
+
+@router.get("/llm-settings")
+async def get_llm_settings_view(
+    session: AsyncSession = Depends(get_session),
+) -> LlmSettingsOut:
+    """Эффективные настройки LLM (то, что реально используют вызовы)."""
+    model, effort = await get_llm_settings_from_session(session)
+    return LlmSettingsOut(
+        model=model,
+        reasoning_effort=effort,
+        available_models=ALLOWED_LLM_MODELS,
+        available_reasoning_efforts=ALLOWED_REASONING_EFFORTS,
+    )
+
+
+@router.patch("/llm-settings")
+async def update_llm_settings(
+    body: LlmSettingsUpdateIn,
+    session: AsyncSession = Depends(get_session),
+) -> LlmSettingsOut:
+    """Сохраняет выбор модели/уровня рассуждений. Применяется ко всем
+    LLM-вызовам (генерация откликов, диалоги, ассистент, HR-чат) сразу,
+    без перезапуска: stream_chat читает настройки при каждом вызове.
+    """
+    if body.model is not None:
+        if body.model not in ALLOWED_LLM_MODELS:
+            raise AppError(
+                "invalid_model",
+                f"Неизвестная модель: {body.model}. Доступны: {', '.join(ALLOWED_LLM_MODELS)}",
+                400,
+            )
+        await set_app_setting(session, "llm_model", body.model)
+    if body.reasoning_effort is not None:
+        if body.reasoning_effort not in ALLOWED_REASONING_EFFORTS:
+            raise AppError(
+                "invalid_reasoning_effort",
+                "Недопустимый уровень рассуждений. "
+                f"Доступны: {', '.join(ALLOWED_REASONING_EFFORTS)}",
+                400,
+            )
+        await set_app_setting(session, "llm_reasoning_effort", body.reasoning_effort)
+    await session.commit()
+    return await get_llm_settings_view(session)
 
 
 # ===== Settings: редактируемые тексты (мастер-CV, README, промпты) =====
