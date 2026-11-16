@@ -1,9 +1,13 @@
 import json
+import logging
 from collections.abc import AsyncIterator
 
 import httpx
 
 from app.config import settings
+from app.llm.settings import get_effective_llm_settings
+
+logger = logging.getLogger(__name__)
 
 
 async def stream_chat(
@@ -16,14 +20,19 @@ async def stream_chat(
     messages: список {role, content} — история диалога (без system).
     system: system-prompt с CV-контекстом.
     temperature: 0.0-1.0. Чат — 0.8 (креативность), генерация CV — 0.3 (стабильность).
+
+    Модель и reasoning_effort берутся из app_setting (переключатель в админке)
+    при каждом вызове; если настроек нет — env ZAI_MODEL + дефолт API.
     Поднимает исключение при ошибке API — вызывающий решает, как деградировать.
     """
     headers = {"Authorization": f"Bearer {settings.zai_api_key}"}
+    model, reasoning_effort = await get_effective_llm_settings()
     payload = {
-        "model": settings.zai_model,
+        "model": model,
         "messages": [{"role": "system", "content": system}, *messages],
         "stream": True,
         "temperature": temperature,
+        "reasoning_effort": reasoning_effort,
     }
     async with httpx.AsyncClient(timeout=120) as client, client.stream(
         "POST",

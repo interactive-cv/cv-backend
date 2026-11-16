@@ -45,6 +45,26 @@ class SettingsUpdateIn(BaseModel):
     prompt_generate_profi: str | None = None
 
 
+class LlmSettingsOut(BaseModel):
+    """Эффективные настройки LLM для GET /api/admin/llm-settings.
+
+    model/reasoning_effort — то, что реально используется вызовами
+    (значение из БД или дефолт); available_* — варианты для UI.
+    """
+
+    model: str
+    reasoning_effort: str
+    available_models: list[str]
+    available_reasoning_efforts: list[str]
+
+
+class LlmSettingsUpdateIn(BaseModel):
+    """Частичное обновление настроек LLM. Только переданные поля."""
+
+    model: str | None = None
+    reasoning_effort: str | None = None
+
+
 class CvEditInstructionIn(BaseModel):
     """Вход для AI-правки мастер-CV (предпросмотр)."""
 

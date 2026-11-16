@@ -1,3 +1,4 @@
+from app.models.app_setting import AppSetting
 from app.models.application import Application, ApplicationKind, ApplicationStatus
 from app.models.artifact import Artifact
 from app.models.assistant_message import AssistantMessage
@@ -11,4 +12,4 @@ from app.models.negotiation import NegotiationMessage
 from app.models.project import Project
 from app.models.short_link import ShortLink
 
-__all__ = ["CONFIG_KEYS", "Application", "ApplicationKind", "ApplicationStatus", "Artifact", "AssistantMessage", "CVVariant", "CVVariantStatus", "ChatMessage", "ChatSession", "ConfigText", "Interview", "LinkHit", "MasterCV", "NegotiationMessage", "Project", "ShortLink"]
+__all__ = ["CONFIG_KEYS", "AppSetting", "Application", "ApplicationKind", "ApplicationStatus", "Artifact", "AssistantMessage", "CVVariant", "CVVariantStatus", "ChatMessage", "ChatSession", "ConfigText", "Interview", "LinkHit", "MasterCV", "NegotiationMessage", "Project", "ShortLink"]
