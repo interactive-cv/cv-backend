@@ -15,14 +15,14 @@ from app.config import settings
 from app.deps import get_session, require_admin
 from app.errors import AppError
 from app.llm.client import stream_chat
+from app.llm.generate_prompt import (
+    build_generate_prompt,
+    parse_generate_response,
+)
 from app.llm.settings import (
     ALLOWED_LLM_MODELS,
     ALLOWED_REASONING_EFFORTS,
     get_llm_settings_from_session,
-)
-from app.llm.generate_prompt import (
-    build_generate_prompt,
-    parse_generate_response,
 )
 from app.models import (
     Application,
@@ -78,7 +78,7 @@ from app.schemas.settings import (
     SettingsOut,
     SettingsUpdateIn,
 )
-from app.services.app_setting import get_app_setting, set_app_setting
+from app.services.app_setting import set_app_setting
 from app.services.config_text import get_all_config, get_config_value, set_config_value
 from app.services.cv_parser import parse_master_cv
 from app.services.spec_extractor import extract_spec
