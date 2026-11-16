@@ -242,6 +242,20 @@ async def upload_spec_files(
     }
 
 
+def _order_text_with_title(a) -> str:
+    """Текст заказа с названием (и заказчиком) в начале — для промптов диалогов.
+
+    Название заказа (a.role) — часть условий: без него LLM в диалогах задаёт
+    вопросы, ответы на которые уже есть в заголовке (например «какая CRM?»
+    при «... с CRM БИТРИКС» в названии).
+    """
+    parts = [f"НАЗВАНИЕ ЗАКАЗА: {a.role}"]
+    if a.company and a.company.strip():
+        parts.append(f"ЗАКАЗЧИК: {a.company.strip()}")
+    parts.append(a.vacancy_text)
+    return "\n\n".join(parts)
+
+
 def _generate_stage(acc: str) -> str:
     """Стадия генерации по накопленному тексту — для статусной строки фронта."""
     if "===ESTIMATE===" in acc:
@@ -281,6 +295,7 @@ async def generate_cv(
         body.kind, body.spec_text, body.extra_instruction, body.platform,
         body.budget, body.budget_max, body.cover_limit,
         body.offered_price, body.offered_price_max, body.my_term_days,
+        title=body.role, company=body.company,
     )
 
     async def gen():
@@ -1484,7 +1499,7 @@ async def suggest_reply(
     dialog_history = "\n".join(dialog_parts)
 
     prompt = template.format(
-        order_text=a.vacancy_text,
+        order_text=_order_text_with_title(a),
         spec_text=(a.spec_text or "").strip() or "(не предоставлено)",
         response_text=a.cover_letter or "(отклик не сохранён)",
         dialog_history=dialog_history,
@@ -1797,7 +1812,7 @@ async def assistant_chat(
         deal = ""
 
     system_prompt = template.format(
-        order_text=a.vacancy_text,
+        order_text=_order_text_with_title(a),
         spec_text=(a.spec_text or "").strip() or "(не предоставлено)",
         response_text=a.cover_letter or "(отклик не сохранён)",
         dialog_history="\n".join(dialog_parts) or "(переписки ещё нет)",

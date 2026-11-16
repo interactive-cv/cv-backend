@@ -67,6 +67,8 @@ async def build_generate_prompt(
     offered_price: str | None = None,
     offered_price_max: str | None = None,
     my_term_days: int | None = None,
+    title: str | None = None,
+    company: str | None = None,
 ) -> str:
     """Собирает промпт для генерации CV и cover letter.
 
@@ -83,6 +85,10 @@ async def build_generate_prompt(
     budget / budget_max — вилка бюджета заказа (kwork: желаемый / допустимый).
     Оба вставляются в промпт если есть.
     cover_limit — лимит символов отклика на площадке (FL 5000, Kwork 2000).
+    title — название заказа (заголовок на бирже) / должность; company — заказчик.
+    Добавляются программным блоком В НАЧАЛЕ промпта поверх любого шаблона
+    (включая промпты из БД) — иначе LLM не видит заголовок и задаёт в отклике
+    вопросы, ответы на которые уже есть в названии.
     """
     from app.services.config_text import get_config_value
 
@@ -167,13 +173,35 @@ async def build_generate_prompt(
             f"Пиши компактно.\n"
         )
 
-    return template.format(
-        cv_markdown=cv_markdown,
-        vacancy_text=vacancy_text,
-        selected_projects=projects_str,
-        cv_link=CV_LINK_PLACEHOLDER,
-        spec_text=spec_section,
-        spec_section=limit_block + budget_block + spec_block + instruction_block,
+    # Название заказа и заказчик — программный блок В НАЧАЛЕ промпта,
+    # поверх любого шаблона (кода и БД): шаблоны плейсхолдеров для него
+    # не содержат, а LLM обязана видеть заголовок заказа как часть вводных.
+    title_block = ""
+    title_txt = (title or "").strip()
+    if title_txt:
+        title_block = (
+            f"НАЗВАНИЕ ЗАКАЗА (заголовок на бирже): {title_txt}\n"
+        )
+        company_txt = (company or "").strip()
+        if company_txt:
+            title_block += f"ЗАКАЗЧИК: {company_txt}\n"
+        title_block += (
+            "ВАЖНО: название заказа — часть условий заказа. Не задавай в отклике "
+            "вопросов и не утверждай, что данных нет, если ответ уже есть "
+            "в названии заказа, его тексте или ТЗ.\n"
+        )
+        title_block += "\n"
+
+    return (
+        title_block
+        + template.format(
+            cv_markdown=cv_markdown,
+            vacancy_text=vacancy_text,
+            selected_projects=projects_str,
+            cv_link=CV_LINK_PLACEHOLDER,
+            spec_text=spec_section,
+            spec_section=limit_block + budget_block + spec_block + instruction_block,
+        )
     )
 
 
