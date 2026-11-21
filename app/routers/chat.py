@@ -75,7 +75,7 @@ async def chat(
     async def gen():
         full_response = ""
         try:
-            async for token in stream_chat(context, system):
+            async for token in stream_chat(context, system, source="hr-chat"):
                 full_response += token
                 yield token
         except Exception:

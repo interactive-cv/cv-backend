@@ -192,7 +192,7 @@ async def test_admin_generate_cv_error_event(client, session, monkeypatch):
     session.add(MasterCV(id=1, summary="s", contacts={}, full_markdown="# CV", version=1))
     await session.commit()
 
-    async def broken_stream(messages, system, temperature=0.8):
+    async def broken_stream(messages, system, temperature=0.8, source="llm"):
         yield "===CV==="
         raise RuntimeError("upstream gone")
 
@@ -1243,7 +1243,7 @@ async def test_assistant_context_prep_and_estimate(client, session, monkeypatch)
 
     captured: dict = {}
 
-    async def fake_stream(messages, system, temperature=0.7):
+    async def fake_stream(messages, system, temperature=0.7, source="llm"):
         captured["messages"] = messages
         captured["system"] = system
         yield "ок"
@@ -1284,7 +1284,7 @@ async def test_edit_chat_estimate_block(client, session, monkeypatch):
 
     captured: dict = {}
 
-    async def fake_stream(messages, system, temperature=0.6):
+    async def fake_stream(messages, system, temperature=0.6, source="llm"):
         captured["system"] = system
         yield "ок"
 
@@ -1556,3 +1556,48 @@ async def test_profi_publish_marks_sent_without_link(client, session):
         f"/api/admin/applications/{res.json()['id']}/publish", headers=VALID)
     assert pub.status_code == 200
     assert pub.json()["code"] is None
+
+
+# ===== Живой журнал LLM-вызовов (виджет админки) =====
+
+
+@pytest.mark.asyncio
+async def test_llm_calls_endpoint_admin_only(client, session):
+    """GET /llm-calls: только по админ-токену; отдаёт записи буфера."""
+    from app.llm import calls_log
+
+    calls_log._calls.clear()
+    r = await client.get("/api/admin/llm-calls")
+    assert r.status_code == 401
+
+    cid = calls_log.log_start("generate", "glm-5.3", "max", 0.8)
+    calls_log.log_finish(cid, ok=True)
+    r = await client.get("/api/admin/llm-calls", headers=VALID)
+    assert r.status_code == 200
+    rows = r.json()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["source"] == "generate"
+    assert row["model"] == "glm-5.3"
+    assert row["effort"] == "max"
+    assert row["status"] == "ok"
+    assert row["duration_s"] is not None
+
+
+def test_calls_log_ring_buffer_and_error():
+    """Буфер: ошибки пишутся со статусом error; кольцо ограничено."""
+    from app.llm import calls_log
+
+    calls_log._calls.clear()
+    cid = calls_log.log_start("hr-chat", "glm-5.3-flash", "low", 0.7)
+    calls_log.log_finish(cid, ok=False, error="boom")
+    rows = calls_log.recent_calls()
+    assert rows[0]["status"] == "error"
+    assert rows[0]["error"] == "boom"
+    assert rows[0]["model"] == "glm-5.3-flash"
+
+    for i in range(calls_log._MAX_CALLS + 10):
+        c = calls_log.log_start("generate", "glm-5.3", "max", 0.8)
+        calls_log.log_finish(c, ok=True)
+    assert len(calls_log.recent_calls()) == calls_log._MAX_CALLS
+    calls_log._calls.clear()

@@ -305,7 +305,7 @@ async def generate_cv(
         try:
             async for token in stream_chat(
                 [{"role": "user", "content": "Сгенерируй отклик"}], prompt,
-                temperature=body.temperature,
+                temperature=body.temperature, source="generate",
             ):
                 chunks.append(token)
                 total += len(token)
@@ -417,7 +417,7 @@ async def edit_chat(
             async for token in stream_chat(
                 [{"role": "user", "content": "Внеси правки согласно инструкции"}],
                 prompt,
-                temperature=body.temperature,
+                temperature=body.temperature, source="edit-chat",
             ):
                 yield token
         except Exception:
@@ -1512,7 +1512,7 @@ async def suggest_reply(
             async for token in stream_chat(
                 [{"role": "user", "content": "Напиши черновик ответа заказчику"}],
                 prompt,
-                temperature=body.temperature,
+                temperature=body.temperature, source="suggest-reply",
             ):
                 yield token
         except Exception:
@@ -1860,6 +1860,7 @@ async def assistant_chat(
         try:
             async for token in stream_chat(
                 chat_messages, system_prompt, temperature=body.temperature,
+                source="assistant-chat",
             ):
                 yield token
         except Exception:
@@ -1869,6 +1870,21 @@ async def assistant_chat(
 
 
 # ===== Instructions: лента доп. инструкций для переиспользования =====
+
+
+@router.get("/llm-calls")
+async def list_llm_calls(
+    _token: str = Depends(require_admin),
+) -> list[dict]:
+    """Живой журнал обращений к LLM (Z.ai) — для виджета админки.
+
+    Последние ~50 вызовов из кольцевого буфера процесса: источник, модель,
+    уровень «думания» (фактически отправленный), статус и длительность.
+    Тела запросов не пишутся. Только по админ-токену.
+    """
+    from app.llm import calls_log
+
+    return calls_log.recent_calls()
 
 
 @router.get("/instructions")
@@ -2055,7 +2071,8 @@ async def preview_master_cv_edit(
     prompt = template.format(current_cv=current_cv, instruction=body.instruction)
     chunks: list[str] = []
     async for token in stream_chat(
-        [{"role": "user", "content": "Обнови CV согласно инструкции"}], prompt
+        [{"role": "user", "content": "Обнови CV согласно инструкции"}], prompt,
+        source="cv-edit",
     ):
         chunks.append(token)
     preview = "".join(chunks).strip()
