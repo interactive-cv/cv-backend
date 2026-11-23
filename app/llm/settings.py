@@ -3,8 +3,8 @@
 Хранятся в app_setting (запись создаётся при первом изменении из админки);
 отсутствие записи = поведение по умолчанию:
   - модель — из env ZAI_MODEL (settings.zai_model);
-  - reasoning_effort — DEFAULT_REASONING_EFFORT ("max", совпадает с дефолтом API
-    glm-5.3, поэтому текущее поведение вызовов не меняется).
+  - reasoning_effort — DEFAULT_REASONING_EFFORT ("max"); значение отправляется
+    в API явно при каждом вызове.
 
 Читается на каждый вызов stream_chat — настройка применяется ко всем LLM-операциям
 (генерация откликов, диалоги, ассистент, HR-чат) без перезапуска.
@@ -21,13 +21,13 @@ from app.models import AppSetting
 logger = logging.getLogger(__name__)
 
 # Доступные модели (переключатель в админке; пополняется по мере появления).
-ALLOWED_LLM_MODELS: list[str] = ["glm-5.3", "glm-5.3-flash"]
+ALLOWED_LLM_MODELS: list[str] = ["glm-5.4", "glm-5.3-flash"]
 
-# Уровни рассуждений (docs.z.ai: reasoning_effort, glm-5.3/5.3-flash).
+# Уровни рассуждений (docs.z.ai: reasoning_effort, glm-5.4/5.3-flash).
 # От слабого к сильному — порядок важен для UI-слайдера.
 ALLOWED_REASONING_EFFORTS: list[str] = ["low", "high", "max"]
 
-# Дефолт API glm-5.3 — "max"; явная отправка значения не меняет поведение.
+# Дефолтный уровень; значение всегда уходит в API явно.
 DEFAULT_REASONING_EFFORT = "max"
 
 LLM_MODEL_KEY = "llm_model"
