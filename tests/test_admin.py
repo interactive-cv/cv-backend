@@ -1570,7 +1570,7 @@ async def test_llm_calls_endpoint_admin_only(client, session):
     r = await client.get("/api/admin/llm-calls")
     assert r.status_code == 401
 
-    cid = calls_log.log_start("generate", "glm-5.3", "max", 0.8)
+    cid = calls_log.log_start("generate", "glm-5.4", "max", 0.8)
     calls_log.log_finish(cid, ok=True)
     r = await client.get("/api/admin/llm-calls", headers=VALID)
     assert r.status_code == 200
@@ -1578,7 +1578,7 @@ async def test_llm_calls_endpoint_admin_only(client, session):
     assert len(rows) == 1
     row = rows[0]
     assert row["source"] == "generate"
-    assert row["model"] == "glm-5.3"
+    assert row["model"] == "glm-5.4"
     assert row["effort"] == "max"
     assert row["status"] == "ok"
     assert row["duration_s"] is not None
@@ -1597,7 +1597,7 @@ def test_calls_log_ring_buffer_and_error():
     assert rows[0]["model"] == "glm-5.3-flash"
 
     for i in range(calls_log._MAX_CALLS + 10):
-        c = calls_log.log_start("generate", "glm-5.3", "max", 0.8)
+        c = calls_log.log_start("generate", "glm-5.4", "max", 0.8)
         calls_log.log_finish(c, ok=True)
     assert len(calls_log.recent_calls()) == calls_log._MAX_CALLS
     calls_log._calls.clear()
