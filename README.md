@@ -27,7 +27,8 @@
 | `GET /api/links/resolve?code=` | Резолв короткой ссылки с TTL, лимитом кликов и session_id трекингом |
 | `POST /api/chat` | AI-чат (стриминг, RAG по CV, контекст диалога, сессии) |
 | `GET /api/chat/history/{id}` | История диалога по session_id (восстановление при перезагрузке) |
-| `POST /admin/applications/generate` | **AI-генерация CV и cover letter** (LLM, RAG, тип vacancy/freelance/contest, ТЗ из PDF) |
+| `POST /admin/applications/generate` | **AI-генерация CV и cover letter** (LLM, RAG, тип vacancy/freelance/contest, ТЗ из PDF и картинок) |
+| `POST /admin/uploads` | **Загрузка файлов до создания отклика**: PDF/DOCX/TXT → текст; картинки (PNG/JPEG/WebP/GIF) → распознавание текста LLM (multimodal) |
 | `POST /admin/applications/upload-spec` | Загрузка ТЗ в PDF → извлечение текста (pypdf) → в промпт |
 | `GET/POST/PATCH/DELETE /admin/applications` | CRUD откликов: вакансии, фриланс-заказы и конкурсы (бюджет, приз, срок, рейтинг, ссылки, ТЗ) |
 | `GET /admin/applications/{id}/pdf` | **Экспорт CV в PDF** (fpdf2, Unicode, кириллица) |

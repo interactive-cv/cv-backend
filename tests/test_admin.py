@@ -1323,8 +1323,15 @@ def test_response_edit_prompt_mixed_mode():
 # ===== Тесты staged uploads (файлы до создания заявки) =====
 
 
+@pytest.fixture()
+def isolated_cwd(tmp_path, monkeypatch):
+    """Рабочая папка — временная: staged-загрузки пишутся в artifacts/ относительно
+    CWD и не должны оставаться в репозитории после тестов."""
+    monkeypatch.chdir(tmp_path)
+
+
 @pytest.mark.asyncio
-async def test_staged_uploads_flow(client, session, monkeypatch):
+async def test_staged_uploads_flow(client, session, monkeypatch, isolated_cwd):
     """Файлы любого типа сохраняются сразу; текст best-effort;
     при создании заявки — привязываются и переезжают."""
     import io
@@ -1392,7 +1399,7 @@ async def test_staged_uploads_flow(client, session, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_staged_upload_delete_before_create(client, session):
+async def test_staged_upload_delete_before_create(client, session, isolated_cwd):
     """Staged-файл можно убрать до создания заявки."""
     res = await client.post(
         "/api/admin/uploads",
@@ -1671,7 +1678,9 @@ async def _app_with_images(client, session, tmp_path, count=1):
 
 
 @pytest.mark.asyncio
-async def test_staged_upload_image_recognized_and_cached(client, session, monkeypatch):
+async def test_staged_upload_image_recognized_and_cached(
+    client, session, monkeypatch, isolated_cwd
+):
     """Картинка при загрузке распознаётся LLM, текст кэшируется в артефакте."""
     import uuid as u
 
@@ -1686,7 +1695,7 @@ async def test_staged_upload_image_recognized_and_cached(client, session, monkey
 
 
 @pytest.mark.asyncio
-async def test_staged_upload_broken_image(client, monkeypatch):
+async def test_staged_upload_broken_image(client, monkeypatch, isolated_cwd):
     """Расширение картинки, но не изображение: сохраняется с диагнозом,
     модель не вызывается."""
     calls = _mock_ocr(monkeypatch)
@@ -1698,7 +1707,7 @@ async def test_staged_upload_broken_image(client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_staged_upload_image_llm_failure_is_soft(client, monkeypatch):
+async def test_staged_upload_image_llm_failure_is_soft(client, monkeypatch, isolated_cwd):
     """Сбой LLM не роняет загрузку: картинка сохраняется с ошибкой,
     остальные файлы пакета обрабатываются."""
     _mock_ocr(monkeypatch, error=RuntimeError("api down"))
@@ -1713,7 +1722,7 @@ async def test_staged_upload_image_llm_failure_is_soft(client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_staged_upload_image_limit_per_request(client, monkeypatch):
+async def test_staged_upload_image_limit_per_request(client, monkeypatch, isolated_cwd):
     """За один запрос распознаётся не больше OCR_MAX_IMAGES_PER_UPLOAD картинок;
     лишние сохраняются с подсказкой."""
     import app.routers.admin as admin_router
