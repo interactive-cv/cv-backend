@@ -1,4 +1,6 @@
+import asyncio
 import json
+import logging
 import re
 import secrets
 import string
@@ -14,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.deps import get_session, require_admin
 from app.errors import AppError
+from app.llm import vision
 from app.llm.client import stream_chat
 from app.llm.generate_prompt import (
     build_generate_prompt,
@@ -82,6 +85,8 @@ from app.services.app_setting import set_app_setting
 from app.services.config_text import get_all_config, get_config_value, set_config_value
 from app.services.cv_parser import parse_master_cv
 from app.services.spec_extractor import extract_spec
+
+logger = logging.getLogger(__name__)
 
 # Prefix /api/admin/ чтобы не конфликтовать с фронтенд-маршрутом /admin (Next.js).
 # nginx: /api/admin/ → fastapi, /admin → nextjs (страница).
@@ -1250,13 +1255,82 @@ def _extract_best_effort(filename: str, content: bytes) -> tuple[str | None, str
             return content.decode("utf-8").strip() or None, None
         except UnicodeDecodeError:
             return None, "не удалось прочитать как UTF-8 текст"
-    return None, None  # бинарный тип (изображение, архив и т.п.) — просто храним
+    return None, None  # бинарный тип (архив и т.п.) — просто храним
+
+
+# Распознавание картинок — платёжный вызов модели на каждую, поэтому лимиты:
+# за одну загрузку и за один вызов ассистента (по требованию).
+OCR_MAX_IMAGES_PER_UPLOAD = 20
+OCR_PREWARM_IMAGES = 10
+OCR_CONCURRENCY = 3
+
+
+async def _transcribe_image(content: bytes) -> tuple[str | None, str | None]:
+    """Текст с изображения через LLM. Возвращает (text, error)."""
+    if len(content) > vision.OCR_MAX_BYTES:
+        limit_mb = vision.OCR_MAX_BYTES // (1024 * 1024)
+        return None, f"картинка больше {limit_mb} MB — не распознана (файл сохранён)"
+    try:
+        return await vision.transcribe_image(content), None
+    except Exception:
+        logger.warning("Распознавание картинки не удалось", exc_info=True)
+        return None, "не удалось распознать картинку (ошибка LLM) — попробуйте ещё раз"
+
+
+async def _prewarm_image_texts(session: AsyncSession, arts: list[Artifact]) -> None:
+    """Заранее распознать картинки заявки, у которых ещё нет текста.
+
+    Артефакты загружаются без распознавания (фото и скриншоты конкурса не
+    должны тратить вызовы модели), поэтому текст добывается здесь, когда
+    ассистенту впервые нужен контекст. Параллельно, до OCR_CONCURRENCY
+    одновременно, и не больше OCR_PREWARM_IMAGES за вызов — иначе первый
+    вопрос после прикрепления скриншотов ждал бы распознавания каждого.
+    Неудача не кэшируется: в следующий раз попытка повторится.
+    """
+    pending: list[tuple[Artifact, bytes]] = []
+    for art in arts:
+        if art.extracted_text:
+            continue
+        path = Path(art.stored_path)
+        try:
+            # размер проверяем до чтения: крупные бинарные артефакты
+            # (APK, видео) не грузим в память только ради сигнатуры
+            if not path.is_file() or path.stat().st_size > vision.OCR_MAX_BYTES:
+                continue
+            content = path.read_bytes()
+        except OSError:
+            continue
+        if not vision.sniff_image(content):
+            continue
+        pending.append((art, content))
+        if len(pending) >= OCR_PREWARM_IMAGES:
+            break
+    if not pending:
+        return
+
+    sem = asyncio.Semaphore(OCR_CONCURRENCY)
+
+    async def one(content: bytes) -> str | None:
+        async with sem:
+            text, _err = await _transcribe_image(content)
+            return text
+
+    texts = await asyncio.gather(*(one(content) for _, content in pending))
+    changed = False
+    for (art, _), text in zip(pending, texts, strict=True):
+        if text:
+            art.extracted_text = text
+            changed = True
+    if changed:
+        await session.commit()
 
 
 async def _artifact_text_cached(session: AsyncSession, art: Artifact) -> str | None:
     """Текст артефакта для контекста LLM: из кэша БД или извлекаем on-demand.
 
     Бинарные типы (архивы, медиа) — None (только имя файла в контексте).
+    Изображения распознаются заранее (_prewarm_image_texts) и попадают сюда
+    уже из кэша.
     """
     if art.extracted_text is not None:
         return art.extracted_text or None
@@ -1277,8 +1351,9 @@ async def staged_uploads(
     """Загрузка файлов ДО создания заявки (первый экран нового отклика).
 
     Любые типы: файл сохраняется сразу (единое хранилище артефактов),
-    текст извлекается best-effort (pdf/docx/txt-семейство). При создании
-    заявки файлы привязываются (ApplicationCreateIn.uploads).
+    текст извлекается best-effort: pdf/docx/txt-семейство — экстрактором,
+    изображения (PNG/JPEG/WebP/GIF) — LLM распознаёт дословный текст.
+    При создании заявки файлы привязываются (ApplicationCreateIn.uploads).
     Попутно чистим staged-файлы старше 7 дней (не привязанные).
     """
     if not files:
@@ -1305,6 +1380,7 @@ async def staged_uploads(
     staged_dir = Path("artifacts") / "staged"
     staged_dir.mkdir(parents=True, exist_ok=True)
     max_bytes = settings.artifact_max_size_mb * 1024 * 1024
+    image_count = 0
     for file in files:
         filename = _sanitize_filename(file.filename or "file") or "file"
         content = await file.read()
@@ -1327,7 +1403,21 @@ async def staged_uploads(
         )
         session.add(art)
         await session.flush()
-        text, error = _extract_best_effort(filename, content)
+        text: str | None
+        error: str | None
+        if vision.is_image(filename, content):
+            image_count += 1
+            if image_count > OCR_MAX_IMAGES_PER_UPLOAD:
+                text, error = None, (
+                    f"больше {OCR_MAX_IMAGES_PER_UPLOAD} картинок за раз — "
+                    "файл сохранён, загрузите его отдельно"
+                )
+            elif not vision.sniff_image(content):
+                text, error = None, "файл повреждён или не является изображением"
+            else:
+                text, error = await _transcribe_image(content)
+        else:
+            text, error = _extract_best_effort(filename, content)
         art.extracted_text = text or ""
         results.append(StagedUploadOut(
             id=str(art.id), filename=filename, size_bytes=len(content),
@@ -1717,7 +1807,8 @@ async def _files_section(
 ) -> str:
     """Секция ФАЙЛЫ для контекста ассистента: текст артефактов заявки.
 
-    pdf/docx/txt — содержимое (кэш в artifact.extracted_text), бинарные —
+    pdf/docx/txt — содержимое (кэш в artifact.extracted_text), изображения —
+    распознанный LLM текст (по требованию, кэш там же), прочие бинарные —
     только имена. Пусто → секция не возвращается (в старом промпте без
     {files_section} плейсхолдера — безопасно, format лишние ключи игнорирует).
     """
@@ -1728,6 +1819,7 @@ async def _files_section(
     ).scalars().all()
     if not arts:
         return ""
+    await _prewarm_image_texts(session, arts)
     parts: list[str] = []
     total = 0
     binary: list[str] = []

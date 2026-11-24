@@ -25,7 +25,8 @@ class StagedUploadOut(BaseModel):
     id: str
     filename: str
     size_bytes: int
-    # Извлечённый текст (pdf/docx/txt) или None, если тип не текстовый
+    # Извлечённый текст (pdf/docx/txt; изображения — распознанные LLM)
+    # или None, если текста нет / извлечь не удалось
     text: str | None = None
     # Диагноз, если файл сохранён, но текст извлечь не удалось
     error: str | None = None
