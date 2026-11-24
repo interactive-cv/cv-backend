@@ -16,13 +16,20 @@ async def stream_chat(
     system: str,
     temperature: float = 0.8,
     source: str = "llm",
+    model_override: str | None = None,
+    effort_override: str | None = None,
 ) -> AsyncIterator[str]:
     """Стримит токены ответа от z.ai (OpenAI-совместимый SSE-протокол).
 
     messages: список {role, content} — история диалога (без system).
+        content — строка или список content-parts для multimodal-запроса
+        ({"type": "image_url", ...}, {"type": "text", ...}).
     system: system-prompt с CV-контекстом.
     temperature: 0.0-1.0. Чат — 0.8 (креативность), генерация CV — 0.3 (стабильность).
     source: эндпоинт-источник вызова — в журнал LLM-вызовов (виджет админки).
+    model_override / effort_override: фиксированные модель и reasoning_effort
+        для служебных вызовов (распознавание картинок) — независимо от
+        переключателя в админке.
 
     Модель и reasoning_effort берутся из app_setting (переключатель в админе)
     при каждом вызове; если настроек нет — env ZAI_MODEL + дефолт API.
@@ -31,7 +38,12 @@ async def stream_chat(
     Поднимает исключение при ошибке API — вызывающий решает, как деградировать.
     """
     headers = {"Authorization": f"Bearer {settings.zai_api_key}"}
-    model, reasoning_effort = await get_effective_llm_settings()
+    if model_override and effort_override:
+        model, reasoning_effort = model_override, effort_override
+    else:
+        model, reasoning_effort = await get_effective_llm_settings()
+        model = model_override or model
+        reasoning_effort = effort_override or reasoning_effort
     payload = {
         "model": model,
         "messages": [{"role": "system", "content": system}, *messages],

@@ -41,8 +41,10 @@ class Artifact(Base):
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     # Аналитика скачиваний (атомарный инкремент, как hit_count у short_link)
     download_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # Извлечённый текст (pdf/docx/txt) для контекста LLM-ассистента.
-    # None = не текстовый или ещё не извлекали (извлечётся on-demand).
+    # Извлечённый текст для контекста LLM-ассистента: pdf/docx/txt — экстрактором,
+    # изображения — распознанный LLM текст. None = не текстовый или ещё не
+    # извлекали (извлечётся on-demand); у изображений пустое значение означает
+    # «ещё не распознано» — распознаётся по требованию (см. _prewarm_image_texts).
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 

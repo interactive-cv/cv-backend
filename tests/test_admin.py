@@ -1324,7 +1324,7 @@ def test_response_edit_prompt_mixed_mode():
 
 
 @pytest.mark.asyncio
-async def test_staged_uploads_flow(client, session):
+async def test_staged_uploads_flow(client, session, monkeypatch):
     """Файлы любого типа сохраняются сразу; текст best-effort;
     при создании заявки — привязываются и переезжают."""
     import io
@@ -1337,13 +1337,15 @@ async def test_staged_uploads_flow(client, session):
     buf = io.BytesIO()
     d.save(buf)
 
+    _mock_ocr(monkeypatch, answer=lambda n: "Схема: три экрана")
+
     res = await client.post(
         "/api/admin/uploads",
         headers=VALID,
         files=[
             ("files", ("spec.docx", buf.getvalue(), "application/octet-stream")),
             ("files", ("notes.txt", "простой текст заметки".encode(), "text/plain")),
-            ("files", ("schema.png", b"\x89PNG fake image", "image/png")),
+            ("files", ("schema.png", _png(b"schema"), "image/png")),
             ("files", ("broken.docx", b"garbage not a zip", "application/octet-stream")),
         ],
     )
@@ -1354,7 +1356,7 @@ async def test_staged_uploads_flow(client, session):
     assert "Требование: три экрана" in by_name["spec.docx"]["text"]
     assert by_name["spec.docx"]["error"] is None
     assert "заметки" in by_name["notes.txt"]["text"]
-    assert by_name["schema.png"]["text"] is None  # бинарный — просто хранится
+    assert by_name["schema.png"]["text"] == "Схема: три экрана"  # картинка — LLM распознаёт
     assert by_name["schema.png"]["error"] is None
     assert by_name["broken.docx"]["text"] is None
     assert "старый формат" in by_name["broken.docx"]["error"] or "повреждён" in by_name["broken.docx"]["error"]
@@ -1601,3 +1603,186 @@ def test_calls_log_ring_buffer_and_error():
         calls_log.log_finish(c, ok=True)
     assert len(calls_log.recent_calls()) == calls_log._MAX_CALLS
     calls_log._calls.clear()
+
+
+# ===== Изображения: распознавание текста LLM при загрузке и по требованию =====
+
+_PNG_SIG = b"\x89PNG\r\n\x1a\n"
+
+
+def _png(marker: bytes = b"") -> bytes:
+    """Картинка-заглушка: настоящая сигнатура PNG + маркер для мока."""
+    return _PNG_SIG + marker + b"\x00" * 16
+
+
+def _mock_ocr(monkeypatch, answer=None, error=None):
+    """Подмена LLM-распознавания. answer(маркер) -> текст; error — сбой.
+    Возвращает список маркеров распознанных картинок (журнал вызовов)."""
+    import base64
+
+    from app.llm import vision
+
+    calls: list[str] = []
+
+    async def fake_stream(messages, system, temperature=0.8, source="llm", **kwargs):
+        url = messages[0]["content"][0]["image_url"]["url"]
+        raw = base64.b64decode(url.split(",", 1)[1])
+        marker = raw[len(_PNG_SIG):].split(b"\x00")[0].decode()
+        calls.append(marker)
+        if error:
+            raise error
+        yield (answer or (lambda m: "текст"))(marker)
+
+    monkeypatch.setattr(vision, "stream_chat", fake_stream)
+    return calls
+
+
+async def _upload(client, files):
+    res = await client.post("/api/admin/uploads", headers=VALID, files=files)
+    assert res.status_code == 201
+    return res.json()
+
+
+async def _app_with_images(client, session, tmp_path, count=1):
+    """Заявка + артефакты-картинки на диске (как прикреплённые после создания)."""
+    import uuid as u
+
+    from app.models import Artifact
+
+    res = await client.post(
+        "/api/admin/applications", headers=VALID,
+        json={
+            "company": "FL", "role": "Скриншоты заказчика", "vacancy_text": "заказ",
+            "cover_letter": "ok", "cv_markdown": "# CV",
+            "slug": f"ocr-{u.uuid4().hex[:8]}", "kind": "freelance",
+        },
+    )
+    app_id = u.UUID(res.json()["id"])
+    for i in range(count):
+        path = tmp_path / f"shot{i}.png"
+        path.write_bytes(_png(str(i).encode()))
+        session.add(Artifact(
+            application_id=app_id, code=u.uuid4().hex[:8], filename=f"shot{i}.png",
+            stored_path=str(path), size_bytes=path.stat().st_size,
+            extracted_text="",  # артефакты загружаются без распознавания
+        ))
+    await session.commit()
+    return app_id
+
+
+@pytest.mark.asyncio
+async def test_staged_upload_image_recognized_and_cached(client, session, monkeypatch):
+    """Картинка при загрузке распознаётся LLM, текст кэшируется в артефакте."""
+    import uuid as u
+
+    from app.models import Artifact
+
+    _mock_ocr(monkeypatch, answer=lambda m: f"Вакансия, страница {m}")
+    out = await _upload(client, [("files", ("vacancy.png", _png(b"1"), "image/png"))])
+    assert out[0]["text"] == "Вакансия, страница 1"
+    assert out[0]["error"] is None
+    art = await session.get(Artifact, u.UUID(out[0]["id"]))
+    assert art.extracted_text == "Вакансия, страница 1"
+
+
+@pytest.mark.asyncio
+async def test_staged_upload_broken_image(client, monkeypatch):
+    """Расширение картинки, но не изображение: сохраняется с диагнозом,
+    модель не вызывается."""
+    calls = _mock_ocr(monkeypatch)
+    out = await _upload(client, [("files", ("fake.png", b"just text", "image/png"))])
+    assert out[0]["text"] is None
+    assert "не является изображением" in out[0]["error"]
+    assert out[0]["id"]  # файл сохранён
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_staged_upload_image_llm_failure_is_soft(client, monkeypatch):
+    """Сбой LLM не роняет загрузку: картинка сохраняется с ошибкой,
+    остальные файлы пакета обрабатываются."""
+    _mock_ocr(monkeypatch, error=RuntimeError("api down"))
+    shot, notes = await _upload(client, [
+        ("files", ("shot.png", _png(), "image/png")),
+        ("files", ("notes.txt", "заметки".encode(), "text/plain")),
+    ])
+    assert shot["id"]  # сохранён
+    assert shot["text"] is None
+    assert "не удалось распознать" in shot["error"]
+    assert "заметки" in notes["text"] and notes["error"] is None
+
+
+@pytest.mark.asyncio
+async def test_staged_upload_image_limit_per_request(client, monkeypatch):
+    """За один запрос распознаётся не больше OCR_MAX_IMAGES_PER_UPLOAD картинок;
+    лишние сохраняются с подсказкой."""
+    import app.routers.admin as admin_router
+
+    limit = admin_router.OCR_MAX_IMAGES_PER_UPLOAD
+    calls = _mock_ocr(monkeypatch)
+    out = await _upload(client, [
+        ("files", (f"p{i}.png", _png(str(i).encode()), "image/png")) for i in range(limit + 2)
+    ])
+    assert len(calls) == limit
+    assert all(r["text"] for r in out[:limit])
+    for extra in out[limit:]:
+        assert extra["id"] and extra["text"] is None
+        assert "больше" in extra["error"] and "отдельно" in extra["error"]
+
+
+@pytest.mark.asyncio
+async def test_files_section_recognizes_images_on_demand(
+    client, session, tmp_path, monkeypatch
+):
+    """Скриншоты, прикреплённые к созданной заявке, ассистент видит как текст:
+    распознавание по требованию, один раз, дальше из кэша."""
+    from app.routers.admin import _files_section
+
+    calls = _mock_ocr(monkeypatch, answer=lambda m: f"Текст скриншота {m}")
+    app_id = await _app_with_images(client, session, tmp_path, count=2)
+
+    section = await _files_section(session, app_id)
+    assert "Текст скриншота 0" in section and "Текст скриншота 1" in section
+    assert "Бинарные файлы без текста" not in section
+
+    assert "Текст скриншота 1" in await _files_section(session, app_id)
+    assert sorted(calls) == ["0", "1"]  # второе обращение — из кэша
+
+
+@pytest.mark.asyncio
+async def test_files_section_image_failure_is_not_cached(
+    client, session, tmp_path, monkeypatch
+):
+    """Сбой распознавания не ломает контекст ассистента (остаётся имя файла)
+    и не кэшируется — следующее обращение пробует снова."""
+    from app.routers.admin import _files_section
+
+    calls = _mock_ocr(monkeypatch, error=RuntimeError("api down"))
+    app_id = await _app_with_images(client, session, tmp_path)
+
+    # текста нет ни у одного файла → пустая секция (существующее правило),
+    # без исключения; неудача не кэшируется
+    assert await _files_section(session, app_id) == ""
+    assert await _files_section(session, app_id) == ""
+    assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_files_section_prewarm_limits(client, session, tmp_path, monkeypatch):
+    """За одно обращение — не больше OCR_PREWARM_IMAGES картинок;
+    слишком большие пропускаются без вызова модели."""
+    import app.routers.admin as admin_router
+    from app.llm import vision
+    from app.routers.admin import _files_section
+
+    monkeypatch.setattr(admin_router, "OCR_PREWARM_IMAGES", 2)
+    calls = _mock_ocr(monkeypatch)
+    app_id = await _app_with_images(client, session, tmp_path, count=3)
+    await _files_section(session, app_id)
+    assert len(calls) == 2
+
+    monkeypatch.setattr(vision, "OCR_MAX_BYTES", 10)  # любая картинка — «слишком большая»
+    calls.clear()
+    big_app = await _app_with_images(client, session, tmp_path, count=1)
+    assert await _files_section(session, big_app) == ""
+    assert calls == []
