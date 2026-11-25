@@ -271,7 +271,19 @@ python scripts/check_prompt_drift.py --diff
 1. Создайте feature-ветку → внесите изменения → push.
 2. CI прогоняет тесты (ruff + pytest + build).
 3. Откройте PR → merge в `master`.
-4. `deploy.yml` автоматически: rsync кода на VPS → rebuild контейнеров → миграции → seed → smoke.
+4. `deploy.yml` автоматически: rsync кода на VPS → `deploy/deploy-backend.sh` → smoke.
+
+Каждый репозиторий деплоит только своё: этот workflow — fastapi и nginx, фронтенд
+(nextjs) — отдельный workflow репозитория cv-frontend.
+
+`deploy/deploy-backend.sh` собирает образы, пока сайт работает на прежних контейнерах, затем
+выполняет миграции и лишь потом пересоздаёт изменившиеся контейнеры. Простой —
+секунды на пересоздание, а не всё время сборки.
+
+> ⚠️ Миграции выполняются **до** переключения, когда прежний код ещё обслуживает
+> запросы, поэтому они должны быть совместимы со старым кодом: только добавление
+> (новые таблицы, nullable-колонки). Убирать старое — следующим релизом.
+> Необратимые миграции — только после `pg_dump` прода.
 
 Требуются GitHub Secrets: `DEPLOY_SSH_KEY`, `DEPLOY_HOST`, `DEPLOY_USER`.
 См. `.github/workflows/deploy.yml`.
@@ -283,7 +295,8 @@ cd cv-backend
 SSH_KEY=~/.ssh/your_key HOST=deploy@your-vps-ip bash deploy.sh
 ```
 
-`deploy.sh` делает rsync + rebuild + миграции + seed. `.env` на сервере **не перезаписывается**.
+`deploy.sh` делает rsync + деплой по той же схеме: сборка → миграции → переключение → seed.
+`.env` на сервере **не перезаписывается**.
 
 ---
 
